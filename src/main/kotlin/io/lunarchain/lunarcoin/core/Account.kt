@@ -11,6 +11,6 @@ import java.security.PublicKey
  */
 open class Account(val publicKey: PublicKey) {
 
-  val address: ByteArray
-    get() = CryptoUtil.generateAddress(publicKey)
+    val address: ByteArray
+        get() = CryptoUtil.generateAddress(publicKey)
 }
