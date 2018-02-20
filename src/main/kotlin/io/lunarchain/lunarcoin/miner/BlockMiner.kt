@@ -21,7 +21,7 @@ object BlockMiner {
     /**
      * 挖矿，返回nonce值和target值。目前采用阻塞模型，后期修改为更合理的异步模型。
      */
-    fun mine(block: Block, parentTime: Long, parentHeight: Long, parentDifficulty: Long): MineResult {
+    fun mine(block: Block, parentTime: Long, parentDifficulty: Long): MineResult {
         logger.info("Miner is working ...")
 
         working = true
@@ -33,13 +33,13 @@ object BlockMiner {
         val merkleRoot = block.trxTrieRoot
         val time = (block.time.millis / 1000) // Current timestamp as seconds since 1970-01-01T00:00 UTC
         val difficulty = BlockChainUtil.getCurrentDifficulty(
-            time, parentTime, parentHeight,
+            block.height, time, parentTime,
             parentDifficulty
         )
 
         // 挖矿难度的算法：https://en.bitcoin.it/wiki/Difficulty
         val target =
-            BigInteger("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF").divide(
+            BigInteger("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF", 16).divide(
                 difficulty.toBigInteger()
             )
         val targetStr = "%064x".format(target)
@@ -71,8 +71,6 @@ object BlockMiner {
 
             val interval = (endTime - startTime) / 1000
 
-            logger.info("Mined block $block in $interval seconds.")
-
             val totalDifficulty = block.totalDifficulty + BigInteger.valueOf(difficulty.toLong())
 
             val newBlock = Block(
@@ -80,6 +78,8 @@ object BlockMiner {
                 block.time, difficulty, nonce, totalDifficulty, block.stateRoot, block.trxTrieRoot,
                 block.transactions
             )
+            logger.info("Mined block $newBlock in $interval seconds.")
+
             val result = MineResult(true, difficulty, nonce, newBlock)
 
             working = false

@@ -5,12 +5,7 @@ import org.spongycastle.asn1.*
 /**
  * HELLO消息，
  */
-class HelloMessage(
-    val version: Int,
-    val clientId: String,
-    val listenPort: Int,
-    val nodeId: String
-) : Message {
+class HelloMessage(val version: Int, val clientId: String, val listenPort: Int, val nodeId: String) : Message {
 
     override fun code(): Byte = MessageCodes.HELLO.code
 

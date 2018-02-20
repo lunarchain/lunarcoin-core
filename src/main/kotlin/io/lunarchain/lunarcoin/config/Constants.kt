@@ -5,6 +5,6 @@ import java.math.BigInteger
 
 object Constants {
     val BLOCK_REWARD = BigInteger.valueOf(5000000000000000000)
-    val MINIMUM_DIFFICULTY = 131072L // 比特币的最小(初始)难度为0x1d00ffff，为测试方便我们降低难度为0x1e00ffff
+    val MINIMUM_DIFFICULTY = 0xFFFFFFL // 比特币的最小(初始)难度为0x1d00ffff，为测试方便我们降低难度为0x1e00ffff
     val COINBASE_SENDER_ADDRESS = Hex.decode("0000000000000000000000000000000000000000")
 }

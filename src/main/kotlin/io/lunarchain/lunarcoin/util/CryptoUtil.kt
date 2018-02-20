@@ -57,7 +57,7 @@ class CryptoUtil {
         /**
          * 发送方用私钥对交易Transaction进行签名。
          */
-        fun signTransaction(trx: Transaction, privateKey: PrivateKey): ByteArray {
+        fun signTransaction(trx:Transaction, privateKey: PrivateKey): ByteArray {
             val signer = Signature.getInstance("SHA256withECDSA")
             signer.initSign(privateKey)
             val msgToSign = CodecUtil.encodeTransactionWithoutSignatureToAsn1(trx).encoded

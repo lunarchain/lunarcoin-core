@@ -3,6 +3,7 @@ package io.lunarchain.lunarcoin.util
 import io.lunarchain.lunarcoin.core.AccountState
 import io.lunarchain.lunarcoin.core.Block
 import io.lunarchain.lunarcoin.core.Transaction
+import io.lunarchain.lunarcoin.storage.BlockInfo
 import org.joda.time.DateTime
 import org.spongycastle.asn1.*
 import java.math.BigInteger
@@ -112,14 +113,7 @@ object CodecUtil {
             val kf = KeyFactory.getInstance("EC", "SC")
             val publicKey = kf.generatePublic(X509EncodedKeySpec(publicKeyBytes))
 
-            return Transaction(
-                senderAddress,
-                receiverAddress,
-                amount,
-                DateTime(millis.toLong()),
-                publicKey,
-                signature
-            )
+            return Transaction(senderAddress, receiverAddress, amount, DateTime(millis.toLong()), publicKey, signature)
         } else {
             return null
         }
@@ -200,6 +194,56 @@ object CodecUtil {
                 DateTime(millis.toLong()), difficulty.toLong(), nonce.toInt(), totalDifficulty,
                 stateRoot, trxTrieRoot, trxList
             )
+        }
+
+        return null
+    }
+
+    /**
+     * 序列化区块信息(BlockInfo)。(使用ASN.1规范)
+     */
+    fun encodeBlockInfos(blocks: List<BlockInfo>): ByteArray {
+
+        val v = ASN1EncodableVector()
+
+        blocks.map {
+            val t = ASN1EncodableVector()
+            t.add(DERBitString(it.hash))
+            t.add(ASN1Boolean.getInstance(it.isMain))
+            t.add(ASN1Integer(it.totalDifficulty))
+
+            v.add(DERSequence(t))
+        }
+
+        return DERSequence(v).encoded
+    }
+
+    /**
+     * 反序列化区块信息(BlockInfo)。(使用ASN.1规范)
+     */
+    fun decodeBlockInfos(bytes: ByteArray): List<BlockInfo>? {
+        val v = ASN1InputStream(bytes).readObject()
+
+        val result = mutableListOf<BlockInfo>()
+        if (v != null) {
+            val seq = ASN1Sequence.getInstance(v)
+
+            for (blockInfoInAsn1 in seq.objects) {
+                val blockInfoInSeq = DERSequence.getInstance(blockInfoInAsn1)
+                if (blockInfoInSeq != null) {
+                    val hash = DERBitString.getInstance(blockInfoInSeq.getObjectAt(0))?.bytes
+                    val isMain = ASN1Boolean.getInstance(blockInfoInSeq.getObjectAt(1))?.isTrue
+                    val totalDifficulty =
+                        ASN1Integer.getInstance(blockInfoInSeq.getObjectAt(2))?.value ?: BigInteger.ZERO
+
+                    if (hash == null || totalDifficulty == null || isMain == null) {
+                        return null
+                    }
+
+                    result.add(BlockInfo(hash, isMain, totalDifficulty))
+                }
+            }
+            return result
         }
 
         return null

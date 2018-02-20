@@ -46,6 +46,8 @@ class BlockChainConfig {
 
     constructor(resource: String) : this(ConfigFactory.parseResources(resource))
 
+    constructor(stream: InputStream) : this(ConfigFactory.parseReader(InputStreamReader(stream)))
+
     companion object {
         fun default(): BlockChainConfig {
             return BlockChainConfig()
@@ -131,7 +133,8 @@ class BlockChainConfig {
                 val key = CryptoUtil.generateKeyPair()
                 props.setProperty("nodeIdPrivateKey", Hex.toHexString(key.private.encoded))
                 props.setProperty("nodeId", Hex.toHexString(key.public.encoded))
-                file.parentFile.mkdirs()
+                File(getDatabaseDir()).mkdir()
+                file.createNewFile()
                 OutputStreamWriter(FileOutputStream(file), "UTF-8").use({ w ->
                     props.store(
                         w,
@@ -198,17 +201,10 @@ class BlockChainConfig {
 
     fun getGenesisBlock(): Block {
         val genesisBlock = Block(
-            1,
-            0,
-            ByteArray(0),
+            1, 0, ByteArray(0),
             Hex.decode("1234567890123456789012345678901234567890"),
-            DateTime(2017, 2, 1, 0, 0, DateTimeZone.UTC),
-            0,
-            0,
-            BigInteger.ZERO,
-            CryptoUtil.merkleRoot(emptyList()),
-            CryptoUtil.merkleRoot(emptyList()),
-            emptyList()
+            DateTime(2017, 2, 1, 0, 0, DateTimeZone.UTC), 0, 0,
+            BigInteger.ZERO, CryptoUtil.merkleRoot(emptyList()), CryptoUtil.merkleRoot(emptyList()), emptyList()
         )
         return genesisBlock
     }

@@ -10,16 +10,9 @@ import java.math.BigInteger
  * 区块(Block)类，包含了区块高度(height)，上一个区块哈希值(parentHash)，旷工账户地址(coinBase)，交易列表(transactions)和时间戳(time)。
  */
 class Block(
-    val version: Int,
-    val height: Long,
-    val parentHash: ByteArray,
-    val coinBase: ByteArray,
-    val time: DateTime,
-    val difficulty: Long,
-    val nonce: Int,
-    val totalDifficulty: BigInteger,
-    val stateRoot: ByteArray,
-    val trxTrieRoot: ByteArray,
+    val version: Int, val height: Long, val parentHash: ByteArray,
+    val coinBase: ByteArray, val time: DateTime, val difficulty: Long,
+    val nonce: Int, val totalDifficulty: BigInteger, val stateRoot: ByteArray, val trxTrieRoot: ByteArray,
     val transactions: List<Transaction>
 ) {
 
@@ -39,8 +32,7 @@ class Block(
     }
 
     override fun toString(): String {
-        return "h:$height, nonce:$nonce, stateRoot:${Hex.toHexString(stateRoot)} trxTrieRoot: ${Hex.toHexString(
-            trxTrieRoot
-        )} dt:$difficulty, tt: $totalDifficulty, time:$time, ${transactions.size} of transactions."
+        return "h:$height, nonce:$nonce, dt:$difficulty, tt: $totalDifficulty, time:$time, " +
+                "${transactions.size} of transactions stateRoot:${Hex.toHexString(stateRoot)} trxTrieRoot: ${Hex.toHexString(trxTrieRoot)}."
     }
 }

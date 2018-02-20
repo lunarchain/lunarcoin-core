@@ -14,7 +14,6 @@ object BlockChainUtil {
     fun validateBlock(
         block: Block,
         parentTime: Long,
-        parentHeight: Long,
         parentDifficulty: Long
     ): Boolean {
         val headerBuffer = ByteBuffer.allocate(4 + 32 + 32 + 8 + 8 + 4)
@@ -23,13 +22,12 @@ object BlockChainUtil {
         val merkleRoot = block.trxTrieRoot
         val time = (block.time.millis / 1000) // Current timestamp as seconds since 1970-01-01T00:00 UTC
         val difficulty = BlockChainUtil.getCurrentDifficulty(
-            time, parentTime, parentHeight,
-            parentDifficulty
+            block.height, time, parentTime, parentDifficulty
         )
         val nonce = block.nonce
 
         val target =
-            BigInteger("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF").divide(
+            BigInteger("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF", 16).divide(
                 difficulty.toBigInteger()
             )
         val targetStr = "%064x".format(target)
@@ -55,7 +53,7 @@ object BlockChainUtil {
     ): Long {
         val difficulty = calculateDifficulty(blockNumber, parentTime, blockTime, parentDifficulty)
 
-        return if (difficulty > MINIMUM_DIFFICULTY) MINIMUM_DIFFICULTY else difficulty
+        return if (difficulty < MINIMUM_DIFFICULTY) MINIMUM_DIFFICULTY else difficulty
     }
 
     fun calculateDifficulty(
@@ -70,7 +68,7 @@ object BlockChainUtil {
         //         (parent_diff / 2048 * max(1 - (block_timestamp - parent_timestamp) // 10, -99))
         //        ) + 2^(periodCount - 2)
 
-        val x = 1 - (parentTime - time) / 10
+        val x = 1 - (time - parentTime) / 10
         val m = max(x, -99)
 
         //Sub-formula B - The difficulty bomb part, which increases the difficulty exponentially every 100,000 blocks.
