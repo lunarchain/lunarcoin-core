@@ -5,7 +5,6 @@ import io.lunarchain.lunarcoin.core.BlockChainManager
 import io.lunarchain.lunarcoin.core.Node
 import io.lunarchain.lunarcoin.network.Peer
 import io.lunarchain.lunarcoin.network.message.*
-import io.lunarchain.lunarcoin.storage.Repository
 import io.netty.buffer.ByteBuf
 import io.netty.channel.ChannelHandlerContext
 import io.netty.handler.codec.ByteToMessageDecoder
@@ -20,7 +19,7 @@ class MessageDecodeHandler(val peer: Peer) : ByteToMessageDecoder() {
 
     private val manager: BlockChainManager = peer.manager
 
-    private val repository: Repository = peer.manager.blockChain.repository
+    private val repository = peer.manager.blockChain.repository
 
     lateinit var ctx: ChannelHandlerContext
 

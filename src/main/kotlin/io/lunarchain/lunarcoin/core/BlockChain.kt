@@ -3,8 +3,8 @@ package io.lunarchain.lunarcoin.core
 import io.lunarchain.lunarcoin.config.BlockChainConfig
 import io.lunarchain.lunarcoin.config.Constants.BLOCK_REWARD
 import io.lunarchain.lunarcoin.storage.BlockInfo
-import io.lunarchain.lunarcoin.storage.MemoryDataSource
 import io.lunarchain.lunarcoin.storage.Repository
+import io.lunarchain.lunarcoin.storage.MemoryDataSource
 import io.lunarchain.lunarcoin.trie.PatriciaTrie
 import io.lunarchain.lunarcoin.util.BlockChainUtil
 import io.lunarchain.lunarcoin.util.CodecUtil
@@ -16,16 +16,11 @@ import java.util.*
 /**
  * 区块链(BlockChain)，一个BlockChain实例就代表一个链。
  */
-class BlockChain(val config: BlockChainConfig) {
+class BlockChain(val config: BlockChainConfig, val repository: Repository) {
 
     private val logger = LoggerFactory.getLogger(javaClass)
 
     private var bestBlock: Block = config.getGenesisBlock()
-
-    /**
-     * 数据的存储。
-     */
-    val repository = Repository.getInstance(config)
 
     /**
      * 交易处理实例。
@@ -44,7 +39,7 @@ class BlockChain(val config: BlockChainConfig) {
      */
     private fun loadBestBlock(): Block {
         bestBlock = repository.getBestBlock() ?: config.getGenesisBlock()
-        repository.getAccountStateStore()?.changeRoot(bestBlock.stateRoot)
+        repository.changeAccountStateRoot(bestBlock.stateRoot)
         logger.debug("Best block is:" + bestBlock)
         return bestBlock
     }
@@ -113,7 +108,7 @@ class BlockChain(val config: BlockChainConfig) {
         return Block(
             block.version, block.height, block.parentHash, block.coinBase,
             block.time, block.difficulty, block.nonce, block.totalDifficulty,
-            repository.getAccountStateStore()?.rootHash ?: ByteArray(0), block.trxTrieRoot,
+            repository.getAccountStateRoot() ?: ByteArray(0), block.trxTrieRoot,
             block.transactions
         )
     }
@@ -230,34 +225,15 @@ class BlockChain(val config: BlockChainConfig) {
     }
 
     private fun updateMainBlockInfo(block: Block) {
-        val isMain = true
-        val blockInfo = BlockInfo(block.hash, isMain, block.totalDifficulty)
+        val blockInfo = BlockInfo(block.hash, true, block.totalDifficulty)
 
-        val blockIndexStore = repository.getBlockIndexStore()
-        val k = CodecUtil.longToByteArray(block.height)
-        val blockInfoList = blockIndexStore?.get(k)
-        if (blockInfoList != null) {
-            val filtered = blockInfoList.dropWhile { it.hash.contentEquals(blockInfo.hash) }
-            val converted = filtered.map { BlockInfo(it.hash, false, it.totalDifficulty) }
-            blockIndexStore.put(CodecUtil.longToByteArray(block.height), converted.plus(blockInfo))
-        } else {
-            blockIndexStore?.put(CodecUtil.longToByteArray(block.height), listOf(blockInfo))
-        }
+        repository.updateBlockInfo(block.height, blockInfo)
     }
 
     private fun updateBranchBlockInfo(block: Block) {
-        val isMain = false
-        val blockInfo = BlockInfo(block.hash, isMain, block.totalDifficulty)
+        val blockInfo = BlockInfo(block.hash, false, block.totalDifficulty)
 
-        val blockIndexStore = repository.getBlockIndexStore()
-        val k = CodecUtil.longToByteArray(block.height)
-        val blockInfoList = blockIndexStore?.get(k)
-        if (blockInfoList != null) {
-            val filtered = blockInfoList.dropWhile { it.hash.contentEquals(blockInfo.hash) }
-            blockIndexStore.put(CodecUtil.longToByteArray(block.height), filtered.plus(blockInfo))
-        } else {
-            blockIndexStore?.put(CodecUtil.longToByteArray(block.height), listOf(blockInfo))
-        }
+        repository.updateBlockInfo(block.height, blockInfo)
     }
 
     private fun isNextBlock(block: Block): Boolean {
