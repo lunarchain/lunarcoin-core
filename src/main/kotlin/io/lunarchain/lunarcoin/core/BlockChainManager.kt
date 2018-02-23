@@ -4,7 +4,6 @@ import io.lunarchain.lunarcoin.miner.BlockMiner
 import io.lunarchain.lunarcoin.miner.MineResult
 import io.lunarchain.lunarcoin.network.Peer
 import io.lunarchain.lunarcoin.network.client.PeerClient
-import io.lunarchain.lunarcoin.util.BlockChainUtil
 import io.lunarchain.lunarcoin.util.CryptoUtil
 import io.reactivex.Flowable
 import io.reactivex.schedulers.Schedulers
@@ -122,20 +121,18 @@ class BlockChainManager(val blockChain: BlockChain) {
 
     fun mineBlock() {
         logger.debug("mineBlock.")
-        val bestBlock = blockChain.getBestBlock()
-        miningBlock = blockChain.generateNewBlock(pendingTransactions)
-        Flowable.fromCallable({ BlockMiner.mine(miningBlock!!, bestBlock.time.millis / 1000, bestBlock.difficulty) })
+        Flowable.fromCallable({
+            val bestBlock = blockChain.getBestBlock()
+            miningBlock = blockChain.generateNewBlock(bestBlock, pendingTransactions)
+            BlockMiner.mine(miningBlock!!, bestBlock.time.millis / 1000, bestBlock.difficulty)
+        })
             .subscribeOn(Schedulers.computation())
             .observeOn(Schedulers.single())
+            .repeatUntil({ !mining })
             .subscribe({
                 if (it.success) {
                     processMinedBlock(it)
                     pendingTransactions.removeAll(it.block.transactions)
-                }
-                if (mining) { // continue mining.
-                    mineBlock()
-                } else {
-                    logger.info("Miner stopped.")
                 }
             })
     }
@@ -288,14 +285,6 @@ class BlockChainManager(val blockChain: BlockChain) {
     fun lockAccount(): Boolean {
         currentAccount = null
         return true
-    }
-
-
-    /**
-     * 加载Account（包含公私钥对）。
-     */
-    fun accountNumber(): Int {
-        return blockChain.repository.accountNumber()
     }
 
     fun stop() {

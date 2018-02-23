@@ -56,9 +56,7 @@ class BlockChain(val config: BlockChainConfig, val repository: Repository) {
      * 构造新的区块，要素信息为：区块高度(height)，父区块的哈希值(parentHash), 交易记录(transactions)，时间戳(time)。
      * 新的区块不会影响当前区块链的状态。
      */
-    fun generateNewBlock(transactions: List<Transaction>): Block {
-        val parent = bestBlock
-
+    fun generateNewBlock(parent: Block, transactions: List<Transaction>): Block {
         val coinbaseTransaction = generateCoinBaseTransaction()
         val transactionsToInclude = listOf(coinbaseTransaction) + transactions
 
