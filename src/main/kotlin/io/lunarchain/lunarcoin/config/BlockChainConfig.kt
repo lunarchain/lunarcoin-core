@@ -133,7 +133,7 @@ class BlockChainConfig {
                 val key = CryptoUtil.generateKeyPair()
                 props.setProperty("nodeIdPrivateKey", Hex.toHexString(key.private.encoded))
                 props.setProperty("nodeId", Hex.toHexString(key.public.encoded))
-                File(getDatabaseDir()).mkdir()
+                File(getDatabaseDir()).mkdirs()
                 file.createNewFile()
                 OutputStreamWriter(FileOutputStream(file), "UTF-8").use({ w ->
                     props.store(
