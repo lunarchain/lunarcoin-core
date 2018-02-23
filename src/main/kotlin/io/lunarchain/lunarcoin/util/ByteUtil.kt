@@ -83,4 +83,24 @@ object ByteUtil {
         System.arraycopy(src, 0, dest, dest.size - src!!.size, src.size)
         return dest
     }
+
+    fun stripLeadingZeroes(data: ByteArray?): ByteArray? {
+
+        if (data == null)
+            return null
+
+        val firstNonZero = firstNonZeroByte(data)
+        when (firstNonZero) {
+            -1 -> return ZERO_BYTE_ARRAY
+
+            0 -> return data
+
+            else -> {
+                val result = ByteArray(data.size - firstNonZero)
+                System.arraycopy(data, firstNonZero, result, 0, data.size - firstNonZero)
+
+                return result
+            }
+        }
+    }
 }

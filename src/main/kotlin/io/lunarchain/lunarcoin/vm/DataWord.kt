@@ -3,6 +3,7 @@ package lunar.vm
 import io.lunarchain.lunarcoin.util.ByteUtil
 import io.lunarchain.lunarcoin.util.FastByteComparisons
 import org.spongycastle.util.Arrays
+import org.spongycastle.util.encoders.Hex
 import java.math.BigInteger
 import java.nio.ByteBuffer
 
@@ -134,6 +135,27 @@ class DataWord(): Comparable<DataWord> {
         return this
     }
 
+    fun add(word: DataWord) {
+        val result = ByteArray(32)
+        var i = 31
+        var overflow = 0
+        while (i >= 0) {
+            val v = (this.data[i].toInt() and 0xff) + (word.data[i].toInt() and 0xff) + overflow
+            result[i] = v.toByte()
+            overflow = v.ushr(8)
+            i--
+        }
+        this.data = result
+    }
+
+    // TODO: mul can be done in more efficient way
+    // TODO:     with shift left shift right trick
+    // TODO      without BigInteger quick hack
+    fun mul(word: DataWord) {
+        val result = value().multiply(word.value())
+        this.data = ByteUtil.copyToArray(result.and(MAX_VALUE))
+    }
+
     operator fun div(word: DataWord) {
 
         if (word.isZero()) {
@@ -143,5 +165,130 @@ class DataWord(): Comparable<DataWord> {
 
         val result = value().divide(word.value())
         this.data = ByteUtil.copyToArray(result.and(MAX_VALUE))
+    }
+
+    fun sValue(): BigInteger {
+        return BigInteger(data)
+    }
+
+    // TODO: improve with no BigInteger
+    fun sDiv(word: DataWord) {
+
+        if (word.isZero()) {
+            this.and(ZERO)
+            return
+        }
+
+        val result = sValue().divide(word.sValue())
+        this.data = ByteUtil.copyToArray(result.and(MAX_VALUE))
+    }
+
+    // TODO: improve with no BigInteger
+    operator fun mod(word: DataWord) {
+
+        if (word.isZero()) {
+            this.and(ZERO)
+            return
+        }
+
+        val result = value().mod(word.value())
+        this.data = ByteUtil.copyToArray(result.and(MAX_VALUE))
+    }
+
+
+    fun sMod(word: DataWord) {
+
+        if (word.isZero()) {
+            this.and(ZERO)
+            return
+        }
+
+        var result = sValue().abs().mod(word.sValue().abs())
+        result = if (sValue().signum() == -1) result.negate() else result
+
+        this.data = ByteUtil.copyToArray(result.and(MAX_VALUE))
+    }
+
+    fun addmod(word1: DataWord, word2: DataWord) {
+        if (word2.isZero()) {
+            this.data = ByteArray(32)
+            return
+        }
+
+        val result = value().add(word1.value()).mod(word2.value())
+        this.data = ByteUtil.copyToArray(result.and(MAX_VALUE))
+    }
+
+    fun mulmod(word1: DataWord, word2: DataWord) {
+
+        if (this.isZero() || word1.isZero() || word2.isZero()) {
+            this.data = ByteArray(32)
+            return
+        }
+
+        val result = value().multiply(word1.value()).mod(word2.value())
+        this.data = ByteUtil.copyToArray(result.and(MAX_VALUE))
+    }
+
+    // TODO: improve with no BigInteger
+    fun exp(word: DataWord) {
+        val result = value().modPow(word.value(), _2_256)
+        this.data = ByteUtil.copyToArray(result)
+    }
+
+    fun signExtend(k: Byte) {
+        if (0 > k || k > 31)
+            throw IndexOutOfBoundsException()
+        val mask = if (this.sValue().testBit(k * 8 + 7)) 0xff.toByte() else 0
+        for (i in 31 downTo k + 1) {
+            this.data[31 - i] = mask
+        }
+    }
+
+    fun bnot() {
+        if (this.isZero()) {
+            this.data = ByteUtil.copyToArray(MAX_VALUE)
+            return
+        }
+        this.data = ByteUtil.copyToArray(MAX_VALUE.subtract(this.value()))
+    }
+
+    fun xor(w2: DataWord): DataWord {
+
+        for (i in this.data.indices) {
+            this.data[i] = (this.data[i].toInt() xor w2.data[i].toInt()).toByte()
+        }
+        return this
+    }
+
+    fun or(w2: DataWord): DataWord {
+
+        for (i in this.data.indices) {
+            this.data[i] = (this.data[i].toInt() or w2.data[i].toInt()).toByte()
+        }
+        return this
+    }
+
+    fun getNoLeadZeroesData(): ByteArray? {
+        return ByteUtil.stripLeadingZeroes(data)
+    }
+
+    fun toPrefixString(): String {
+
+        val pref = getNoLeadZeroesData()
+        if (pref == null || pref.isEmpty()) return ""
+
+        return if (pref.size < 7) Hex.toHexString(pref) else Hex.toHexString(pref).substring(0, 6)
+
+    }
+
+    /**
+     * In case of int overflow returns Integer.MAX_VALUE
+     * otherwise works as #intValue()
+     */
+    fun intValueSafe(): Int {
+        val bytesOccupied = bytesOccupied()
+        val intValue = intValue()
+        return if (bytesOccupied > 4 || intValue < 0) Integer.MAX_VALUE else intValue
     }
 }

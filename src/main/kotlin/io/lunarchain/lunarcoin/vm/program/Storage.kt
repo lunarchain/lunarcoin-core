@@ -41,5 +41,9 @@ class Storage(private val programInvoke: ProgramInvoke): ProgramListenerAware {
         return repository?.getStorageValue(addr, key)
     }
 
+    fun addStorageRow(addr: ByteArray, key: DataWord, value: DataWord) {
+        repository?.addStorageRow(addr, key, value)
+    }
+
 
 }

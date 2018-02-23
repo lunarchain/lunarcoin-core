@@ -1,9 +1,14 @@
 package lunar.vm
 
+import io.lunarchain.lunarcoin.util.ByteUtil.EMPTY_BYTE_ARRAY
+import io.lunarchain.lunarcoin.util.CryptoUtil.Companion.sha3
+import io.lunarchain.lunarcoin.vm.LogInfo
 import lunar.vm.config.VMConfig
 import lunar.vm.program.Program
 import org.slf4j.LoggerFactory
+import org.spongycastle.util.encoders.Hex
 import java.math.BigInteger
+import java.util.ArrayList
 
 object VM {
     private val logger = LoggerFactory.getLogger("VM")
@@ -233,6 +238,669 @@ object VM {
         */
         // Execute operation
         when(op) {
+            OpCode.STOP -> {
+                program.setHReturn(EMPTY_BYTE_ARRAY)
+                program.stop()
+            }
+            OpCode.ADD -> {
+                val word1 = program.stackPop()
+                val word2 = program.stackPop()
+
+                if (logger.isInfoEnabled)
+                    hint = word1.value().toString() + " + " + word2.value()
+
+                word1.add(word2)
+                program.stackPush(word1)
+                program.step()
+            }
+            OpCode.MUL -> {
+                val word1 = program.stackPop()
+                val word2 = program.stackPop()
+
+                if (logger.isInfoEnabled)
+                    hint = word1.value().toString() + " * " + word2.value()
+
+                word1.mul(word2)
+                program.stackPush(word1)
+                program.step()
+            }
+
+            OpCode.SUB -> {
+                val word1 = program.stackPop()
+                val word2 = program.stackPop()
+
+                if (logger.isInfoEnabled)
+                    hint = word1.value().toString() + " - " + word2.value()
+
+                word1.sub(word2)
+                program.stackPush(word1)
+                program.step()
+            }
+            OpCode.DIV -> {
+                val word1 = program.stackPop()
+                val word2 = program.stackPop()
+
+                if (logger.isInfoEnabled)
+                    hint = word1.value().toString() + " / " + word2.value()
+
+                word1.div(word2)
+                program.stackPush(word1)
+                program.step()
+            }
+            OpCode.SDIV -> {
+                val word1 = program.stackPop()
+                val word2 = program.stackPop()
+
+                if (logger.isInfoEnabled)
+                    hint = word1.sValue().toString() + " / " + word2.sValue()
+
+                word1.sDiv(word2)
+                program.stackPush(word1)
+                program.step()
+            }
+            OpCode.MOD -> {
+                val word1 = program.stackPop()
+                val word2 = program.stackPop()
+
+                if (logger.isInfoEnabled)
+                    hint = word1.value().toString() + " % " + word2.value()
+
+                word1.mod(word2)
+                program.stackPush(word1)
+                program.step()
+            }
+            OpCode.SMOD -> {
+                val word1 = program.stackPop()
+                val word2 = program.stackPop()
+
+                if (logger.isInfoEnabled)
+                    hint = word1.sValue().toString() + " #% " + word2.sValue()
+
+                word1.sMod(word2)
+                program.stackPush(word1)
+                program.step()
+            }
+            OpCode.EXP -> {
+                val word1 = program.stackPop()
+                val word2 = program.stackPop()
+
+                if (logger.isInfoEnabled)
+                    hint = word1.value().toString() + " ** " + word2.value()
+
+                word1.exp(word2)
+                program.stackPush(word1)
+                program.step()
+            }
+            OpCode.SIGNEXTEND -> {
+                val word1 = program.stackPop()
+                val k = word1.value()
+
+                if (k.compareTo(_32_) < 0) {
+                    val word2 = program.stackPop()
+                    if (logger.isInfoEnabled)
+                        hint = word1.toString() + "  " + word2.value()
+                    word2.signExtend(k.toByte())
+                    program.stackPush(word2)
+                }
+                program.step()
+            }
+            OpCode.NOT -> {
+                val word1 = program.stackPop()
+                word1.bnot()
+
+                if (logger.isInfoEnabled)
+                    hint = "" + word1.value()
+
+                program.stackPush(word1)
+                program.step()
+            }
+            OpCode.LT -> {
+                // TODO: can be improved by not using BigInteger
+                val word1 = program.stackPop()
+                val word2 = program.stackPop()
+
+                if (logger.isInfoEnabled)
+                    hint = word1.value().toString() + " < " + word2.value()
+
+                if (word1.value().compareTo(word2.value()) === -1) {
+                    word1.and(DataWord.ZERO)
+                    word1.getData()[31] = 1
+                } else {
+                    word1.and(DataWord.ZERO)
+                }
+                program.stackPush(word1)
+                program.step()
+            }
+            OpCode.SLT -> {
+                // TODO: can be improved by not using BigInteger
+                val word1 = program.stackPop()
+                val word2 = program.stackPop()
+
+                if (logger.isInfoEnabled)
+                    hint = word1.sValue().toString() + " < " + word2.sValue()
+
+                if (word1.sValue().compareTo(word2.sValue()) === -1) {
+                    word1.and(DataWord.ZERO)
+                    word1.getData()[31] = 1
+                } else {
+                    word1.and(DataWord.ZERO)
+                }
+                program.stackPush(word1)
+                program.step()
+            }
+            OpCode.SGT -> {
+                // TODO: can be improved by not using BigInteger
+                val word1 = program.stackPop()
+                val word2 = program.stackPop()
+
+                if (logger.isInfoEnabled)
+                    hint = word1.sValue().toString() + " > " + word2.sValue()
+
+                if (word1.sValue().compareTo(word2.sValue()) === 1) {
+                    word1.and(DataWord.ZERO)
+                    word1.getData()[31] = 1
+                } else {
+                    word1.and(DataWord.ZERO)
+                }
+                program.stackPush(word1)
+                program.step()
+            }
+
+            OpCode.GT -> {
+                // TODO: can be improved by not using BigInteger
+                val word1 = program.stackPop()
+                val word2 = program.stackPop()
+
+                if (logger.isInfoEnabled)
+                    hint = word1.value().toString() + " > " + word2.value()
+
+                if (word1.value().compareTo(word2.value()) === 1) {
+                    word1.and(DataWord.ZERO)
+                    word1.getData()[31] = 1
+                } else {
+                    word1.and(DataWord.ZERO)
+                }
+                program.stackPush(word1)
+                program.step()
+            }
+            OpCode.EQ -> {
+                val word1 = program.stackPop()
+                val word2 = program.stackPop()
+
+                if (logger.isInfoEnabled)
+                    hint = word1.value().toString() + " == " + word2.value()
+
+                if (word1.xor(word2).isZero()) {
+                    word1.and(DataWord.ZERO)
+                    word1.getData()[31] = 1
+                } else {
+                    word1.and(DataWord.ZERO)
+                }
+                program.stackPush(word1)
+                program.step()
+            }
+
+            OpCode.ISZERO -> {
+                val word1 = program.stackPop()
+                if (word1.isZero()) {
+                    word1.getData()[31] = 1
+                } else {
+                    word1.and(DataWord.ZERO)
+                }
+
+                if (logger.isInfoEnabled)
+                    hint = "" + word1.value()
+
+                program.stackPush(word1)
+                program.step()
+            }
+
+        /**
+         * Bitwise Logic Operations
+         */
+            OpCode.AND -> {
+                val word1 = program.stackPop()
+                val word2 = program.stackPop()
+
+                if (logger.isInfoEnabled)
+                    hint = word1.value().toString() + " && " + word2.value()
+
+                word1.and(word2)
+                program.stackPush(word1)
+                program.step()
+            }
+            OpCode.OR -> {
+                val word1 = program.stackPop()
+                val word2 = program.stackPop()
+
+                if (logger.isInfoEnabled)
+                    hint = word1.value().toString() + " || " + word2.value()
+
+                word1.or(word2)
+                program.stackPush(word1)
+                program.step()
+            }
+            OpCode.XOR -> {
+                val word1 = program.stackPop()
+                val word2 = program.stackPop()
+
+                if (logger.isInfoEnabled)
+                    hint = word1.value().toString() + " ^ " + word2.value()
+
+                word1.xor(word2)
+                program.stackPush(word1)
+                program.step()
+            }
+
+            OpCode.BYTE -> {
+                val word1 = program.stackPop()
+                val word2 = program.stackPop()
+                val result: DataWord
+                if (word1.value().compareTo(_32_) === -1) {
+                    val tmp = word2.getData()[word1.intValue()]
+                    word2.and(DataWord.ZERO)
+                    word2.getData()[31] = tmp
+                    result = word2
+                } else {
+                    result = DataWord()
+                }
+
+                if (logger.isInfoEnabled)
+                    hint = "" + result.value()
+
+                program.stackPush(result)
+                program.step()
+            }
+
+            OpCode.ADDMOD -> {
+                val word1 = program.stackPop()
+                val word2 = program.stackPop()
+                val word3 = program.stackPop()
+                word1.addmod(word2, word3)
+                program.stackPush(word1)
+                program.step()
+            }
+
+            OpCode.MULMOD -> {
+                val word1 = program.stackPop()
+                val word2 = program.stackPop()
+                val word3 = program.stackPop()
+                word1.mulmod(word2, word3)
+                program.stackPush(word1)
+                program.step()
+            }
+
+        /**
+         * SHA3
+         */
+            OpCode.SHA3 -> {
+                val memOffsetData = program.stackPop()
+                val lengthData = program.stackPop()
+                val buffer = program.memoryChunk(memOffsetData.intValueSafe(), lengthData.intValueSafe())
+
+                val encoded = sha3(buffer)
+                val word = DataWord(encoded)
+
+                if (logger.isInfoEnabled)
+                    hint = word.toString()
+
+                program.stackPush(word)
+                program.step()
+            }
+
+        /**
+         * Environmental Information
+         */
+            OpCode.ADDRESS -> {
+                val address = program.getOwnerAddress()
+
+                if (logger.isInfoEnabled)
+                    hint = "address: " + Hex.toHexString(address.getLast20Bytes())
+
+                program.stackPush(address)
+                program.step()
+            }
+
+            OpCode.BALANCE -> {
+                val address = program.stackPop()
+                val balance = program.getBalance(address)
+
+                if (logger.isInfoEnabled)
+                    hint = ("address: "
+                            + Hex.toHexString(address.getLast20Bytes())
+                            + " balance: " + balance.toString())
+
+                program.stackPush(balance)
+                program.step()
+            }
+
+            OpCode.ORIGIN -> {
+                val originAddress = program.getOriginAddress()
+
+                if (logger.isInfoEnabled)
+                    hint = "address: " + Hex.toHexString(originAddress.getLast20Bytes())
+
+                program.stackPush(originAddress)
+                program.step()
+            }
+
+            OpCode.CALLER -> {
+                val callerAddress = program.getCallerAddress()
+
+                if (logger.isInfoEnabled)
+                    hint = "address: " + Hex.toHexString(callerAddress.getLast20Bytes())
+
+                program.stackPush(callerAddress)
+                program.step()
+            }
+
+            OpCode.CALLVALUE -> {
+                val callValue = program.getCallValue()
+
+                if (logger.isInfoEnabled)
+                    hint = "value: " + callValue
+
+                program.stackPush(callValue)
+                program.step()
+            }
+
+            OpCode.CALLDATALOAD -> {
+                val dataOffs = program.stackPop()
+                val value = program.getDataValue(dataOffs)
+
+                if (logger.isInfoEnabled)
+                    hint = "data: " + value
+
+                program.stackPush(value)
+                program.step()
+            }
+
+            OpCode.CALLDATASIZE -> {
+                val dataSize = program.getDataSize()
+
+                if (logger.isInfoEnabled)
+                    hint = "size: " + dataSize.value()
+
+                program.stackPush(dataSize)
+                program.step()
+            }
+
+            OpCode.CALLDATACOPY -> {
+                val memOffsetData = program.stackPop()
+                val dataOffsetData = program.stackPop()
+                val lengthData = program.stackPop()
+
+                val msgData = program.getDataCopy(dataOffsetData, lengthData)
+
+                if (logger.isInfoEnabled)
+                    hint = "data: " + Hex.toHexString(msgData)
+
+                program.memorySave(memOffsetData.intValueSafe(), msgData)
+                program.step()
+            }
+
+            OpCode.RETURNDATASIZE -> {
+                val dataSize = program.getReturnDataBufferSize()
+
+                if (logger.isInfoEnabled)
+                    hint = "size: " + dataSize.value()
+
+                program.stackPush(dataSize)
+                program.step()
+            }
+
+            OpCode.RETURNDATACOPY -> {
+                val memOffsetData = program.stackPop()
+                val dataOffsetData = program.stackPop()
+                val lengthData = program.stackPop()
+
+                val msgData = program.getReturnDataBufferData(dataOffsetData, lengthData)
+                        ?: throw Program.ReturnDataCopyIllegalBoundsException(dataOffsetData, lengthData, program.getReturnDataBufferSize().longValueSafe())
+
+                if (logger.isInfoEnabled)
+                    hint = "data: " + Hex.toHexString(msgData!!)
+
+                program.memorySave(memOffsetData.intValueSafe(), msgData)
+                program.step()
+            }
+
+            OpCode.CODESIZE, OpCode.EXTCODESIZE -> {
+
+                val length: Int
+                if (op === OpCode.CODESIZE)
+                    length = program.getCode().size
+                else {
+                    val address = program.stackPop()
+                    length = program.getCodeAt(address).size
+                }
+                val codeLength = DataWord(length)
+
+                if (logger.isInfoEnabled)
+                    hint = "size: " + length
+
+                program.stackPush(codeLength)
+                program.step()
+            }
+
+            OpCode.CODECOPY, OpCode.EXTCODECOPY -> {
+
+                var fullCode = EMPTY_BYTE_ARRAY
+                if (op === OpCode.CODECOPY)
+                    fullCode = program.getCode()
+
+                if (op === OpCode.EXTCODECOPY) {
+                    val address = program.stackPop()
+                    fullCode = program.getCodeAt(address)
+                }
+
+                val memOffset = program.stackPop().intValueSafe()
+                val codeOffset = program.stackPop().intValueSafe()
+                val lengthData = program.stackPop().intValueSafe()
+
+                val sizeToBeCopied = if (codeOffset.toLong() + lengthData > fullCode.size)
+                    if (fullCode.size < codeOffset) 0 else fullCode.size - codeOffset
+                else
+                    lengthData
+
+                val codeCopy = ByteArray(lengthData)
+
+                if (codeOffset < fullCode.size)
+                    System.arraycopy(fullCode, codeOffset, codeCopy, 0, sizeToBeCopied)
+
+                if (logger.isInfoEnabled)
+                    hint = "code: " + Hex.toHexString(codeCopy)
+
+                program.memorySave(memOffset, codeCopy)
+                program.step()
+            }
+
+            OpCode.GASPRICE -> {
+                val gasPrice = program.getGasPrice()
+
+                if (logger.isInfoEnabled)
+                    hint = "price: " + gasPrice.toString()
+
+                program.stackPush(gasPrice)
+                program.step()
+            }
+        /**
+         * Block Information
+         */
+            OpCode.BLOCKHASH -> {
+
+                val blockIndex = program.stackPop().intValueSafe()
+
+                val blockHash = program.getBlockHash(blockIndex)
+
+                if (logger.isInfoEnabled)
+                    hint = "blockHash: " + blockHash
+
+                program.stackPush(blockHash)
+                program.step()
+            }
+
+            OpCode.COINBASE -> {
+                val coinbase = program.getCoinbase()
+
+                if (logger.isInfoEnabled)
+                    hint = "coinbase: " + Hex.toHexString(coinbase.getLast20Bytes())
+
+                program.stackPush(coinbase)
+                program.step()
+            }
+
+            OpCode.TIMESTAMP -> {
+                val timestamp = program.getTimestamp()
+
+                if (logger.isInfoEnabled)
+                    hint = "timestamp: " + timestamp.value()
+
+                program.stackPush(timestamp)
+                program.step()
+            }
+
+            OpCode.NUMBER -> {
+                val number = program.getNumber()
+
+                if (logger.isInfoEnabled)
+                    hint = "number: " + number.value()
+
+                program.stackPush(number)
+                program.step()
+            }
+
+            OpCode.DIFFICULTY -> {
+                val difficulty = program.getDifficulty()
+
+                if (logger.isInfoEnabled)
+                    hint = "difficulty: " + difficulty
+
+                program.stackPush(difficulty)
+                program.step()
+            }
+
+            OpCode.GASLIMIT -> {
+                val gaslimit = program.getGasLimit()
+
+                if (logger.isInfoEnabled)
+                    hint = "gaslimit: " + gaslimit
+
+                program.stackPush(gaslimit)
+                program.step()
+            }
+
+            OpCode.POP -> {
+                program.stackPop()
+                program.step()
+            }
+
+            OpCode.DUP1, OpCode.DUP2, OpCode.DUP3, OpCode.DUP4,
+            OpCode.DUP5, OpCode.DUP6, OpCode.DUP7, OpCode.DUP8,
+            OpCode.DUP9, OpCode.DUP10, OpCode.DUP11, OpCode.DUP12,
+            OpCode.DUP13, OpCode.DUP14, OpCode.DUP15, OpCode.DUP16 -> {
+
+                val n = op.`val`() - OpCode.DUP1.`val`() + 1
+                val word_1 = stack[stack.size - n]
+                program.stackPush(word_1.clone())
+                program.step()
+
+            }
+            OpCode.SWAP1, OpCode.SWAP2, OpCode.SWAP3, OpCode.SWAP4,
+            OpCode.SWAP5, OpCode.SWAP6, OpCode.SWAP7, OpCode.SWAP8,
+            OpCode.SWAP9, OpCode.SWAP10, OpCode.SWAP11, OpCode.SWAP12,
+            OpCode.SWAP13, OpCode.SWAP14, OpCode.SWAP15, OpCode.SWAP16 -> {
+
+                val n = op.`val`() - OpCode.SWAP1.`val`() + 2
+                stack.swap(stack.size - 1, stack.size - n)
+                program.step()
+            }
+
+            OpCode.LOG0,
+            OpCode.LOG1,
+            OpCode.LOG2,
+            OpCode.LOG3,
+            OpCode.LOG4 -> {
+
+                if (program.isStaticCall()) throw Program.StaticCallModificationException()
+                val address = program.getOwnerAddress()
+
+                val memStart = stack.pop()
+                val memOffset = stack.pop()
+
+                val nTopics = op.`val`() - OpCode.LOG0.`val`()
+
+                val topics: MutableList<DataWord> = ArrayList()
+                for (i in 0 until nTopics) {
+                    val topic = stack.pop()
+                    topics.add(topic)
+                }
+
+                val data = program.memoryChunk(memStart.intValueSafe(), memOffset.intValueSafe())
+
+                val logInfo = LogInfo(address.getLast20Bytes(), topics, data)
+
+                if (logger.isInfoEnabled)
+                    hint = logInfo.toString()
+
+                program.getResult().addLogInfo(logInfo)
+                program.step()
+            }
+            OpCode.MLOAD -> {
+                val addr = program.stackPop()
+                val data = program.memoryLoad(addr)
+
+                if (logger.isInfoEnabled)
+                    hint = "data: " + data
+
+                program.stackPush(data)
+                program.step()
+            }
+
+            OpCode.MSTORE -> {
+                val addr = program.stackPop()
+                val value = program.stackPop()
+
+                if (logger.isInfoEnabled)
+                    hint = "addr: $addr value: $value"
+
+                program.memorySave(addr, value)
+                program.step()
+            }
+
+            OpCode.MSTORE8 -> {
+                val addr = program.stackPop()
+                val value = program.stackPop()
+                val byteVal = byteArrayOf(value.getData()[31])
+                program.memorySave(addr.intValueSafe(), byteVal)
+                program.step()
+            }
+
+            OpCode.SLOAD -> {
+                val key = program.stackPop()
+                var `val` = program.storageLoad(key)
+
+                if (logger.isInfoEnabled)
+                    hint = "key: $key value: $`val`"
+
+                if (`val` == null)
+                    `val` = key.and(DataWord.ZERO)
+
+                program.stackPush(`val`)
+                program.step()
+            }
+
+            OpCode.SSTORE -> {
+                if (program.isStaticCall()) throw Program.StaticCallModificationException()
+
+                val addr = program.stackPop()
+                val value = program.stackPop()
+
+                if (logger.isInfoEnabled)
+                    hint = "[" + program.getOwnerAddress().toPrefixString() + "] key: " + addr + " value: " + value
+
+                program.storageSave(addr, value)
+                program.step()
+            }
 
         }
 

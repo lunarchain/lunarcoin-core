@@ -39,7 +39,30 @@ interface Repository {
     fun updateBlockInfo(height: Long, blockInfo: BlockInfo)
     fun isExist(address: ByteArray): Boolean
     fun getStorageValue(addr: ByteArray, key: DataWord): DataWord
-    fun getAccountState(address: ByteArray): AccountState
+    fun getAccountState(address: ByteArray): AccountState?
+    /**
+     * Retrieve the code associated with an account
+     *
+     * @param addr of the account
+     * @return code in byte-array format
+     */
+    fun getCode(addr: ByteArray): ByteArray?
+
+    /**
+     * Gets the block hash by its index.
+     * When more than one block with the specified index exists (forks)
+     * the select the block which is ancestor of the branchBlockHash
+     */
+    fun getBlockHashByNumber(blockNumber: Long, branchBlockHash: ByteArray): ByteArray
+
+    /**
+     * Put a value in storage of an account at a given key
+     *
+     * @param addr of the account
+     * @param key of the data to store
+     * @param value is the data to store
+     */
+    fun addStorageRow(addr: ByteArray, key: DataWord, value: DataWord)
 
 }
 

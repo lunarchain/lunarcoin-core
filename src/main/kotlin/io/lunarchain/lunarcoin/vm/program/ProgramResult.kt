@@ -2,6 +2,8 @@ package lunar.vm.program
 
 import io.lunarchain.lunarcoin.util.ByteArraySet
 import io.lunarchain.lunarcoin.util.ByteArrayWrapper
+import io.lunarchain.lunarcoin.util.ByteUtil.EMPTY_BYTE_ARRAY
+import io.lunarchain.lunarcoin.vm.LogInfo
 import lunar.vm.DataWord
 import java.util.*
 
@@ -20,6 +22,10 @@ class ProgramResult {
     private val touchedAccounts = ByteArraySet(HashSet<ByteArrayWrapper>())
 
     private var futureRefund: Long = 0
+
+    private var hReturn = EMPTY_BYTE_ARRAY
+
+    private var logInfoList: MutableList<LogInfo>? = null
 
     fun spendGas(gas: Long) {
         gasUsed += gas
@@ -79,6 +85,23 @@ class ProgramResult {
 
     fun addFutureRefund(gasValue: Long) {
         futureRefund += gasValue
+    }
+
+    fun setHReturn(hReturn: ByteArray) {
+        this.hReturn = hReturn
+
+    }
+
+    fun getLogInfoList(): MutableList<LogInfo> {
+        if (logInfoList == null) {
+            logInfoList = ArrayList()
+        }
+        return logInfoList!!
+    }
+
+
+    fun addLogInfo(logInfo: LogInfo) {
+        getLogInfoList().add(logInfo)
     }
 
 

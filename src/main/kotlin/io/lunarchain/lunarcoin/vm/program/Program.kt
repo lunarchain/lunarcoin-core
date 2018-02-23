@@ -2,6 +2,7 @@ package lunar.vm.program
 
 import io.lunarchain.lunarcoin.core.Transaction
 import io.lunarchain.lunarcoin.util.ByteArraySet
+import io.lunarchain.lunarcoin.util.ByteUtil.EMPTY_BYTE_ARRAY
 import io.lunarchain.lunarcoin.util.Utils
 import lunar.vm.DataWord
 import lunar.vm.OpCode
@@ -48,6 +49,8 @@ class Program(private val ops: ByteArray, private val programInvoke: ProgramInvo
     private val traceListener = ProgramTraceListener(true)
     private val storageDiffListener = ProgramStorageChangeListener()
     private val programListener = CompositeProgramListener()
+
+    private var returnDataBuffer: ByteArray? = null
 
 
     private fun <T : ProgramListenerAware> setupProgramListener(programListenerAware: T): T {
@@ -287,6 +290,108 @@ class Program(private val ops: ByteArray, private val programInvoke: ProgramInvo
         getResult().spendGas(gasValue)
     }
 
+    fun setHReturn(buff: ByteArray) {
+        getResult().setHReturn(buff)
+    }
+
+    fun getOriginAddress(): DataWord {
+        return programInvoke.getOriginAddress().clone()
+    }
+
+    fun getCallerAddress(): DataWord {
+        return programInvoke.getCallerAddress().clone()
+    }
+
+    fun getCallValue(): DataWord {
+        return programInvoke.getCallValue().clone()
+    }
+
+    fun getDataValue(index: DataWord): DataWord {
+        return programInvoke.getDataValue(index)
+    }
+
+    fun getDataSize(): DataWord {
+        return programInvoke.getDataSize().clone()
+    }
+
+    fun getDataCopy(offset: DataWord, length: DataWord): ByteArray {
+        return programInvoke.getDataCopy(offset, length)
+    }
+
+    fun getReturnDataBufferSize(): DataWord {
+        return DataWord(getReturnDataBufferSizeI())
+    }
+
+    private fun getReturnDataBufferSizeI(): Int {
+        return if (returnDataBuffer == null) 0 else returnDataBuffer!!.size
+    }
+
+    fun getReturnDataBufferData(off: DataWord, size: DataWord): ByteArray? {
+        if (off.intValueSafe() as Long + size.intValueSafe() > getReturnDataBufferSizeI()) return null
+        return if (returnDataBuffer == null)
+            ByteArray(0)
+        else
+            Arrays.copyOfRange(returnDataBuffer, off.intValueSafe(), off.intValueSafe() + size.intValueSafe())
+    }
+
+    fun getCode(): ByteArray {
+        return ops
+    }
+
+    fun getCodeAt(address: DataWord): ByteArray {
+        val code: ByteArray? = programInvoke.getRepository().getCode(address.getLast20Bytes())
+        if(code == null || code.isEmpty()) return EMPTY_BYTE_ARRAY else return code
+    }
+
+    fun getGasPrice(): DataWord {
+        return programInvoke.getMinGasPrice().clone()
+    }
+
+    fun getNumber(): DataWord {
+        return programInvoke.getNumber().clone()
+    }
+
+    fun getPrevHash(): DataWord {
+        return programInvoke.getPrevHash().clone()
+    }
+
+    fun getBlockHash(index: Int): DataWord {
+        return if (index < this.getNumber().longValue() && index >= Math.max(256, this.getNumber().intValue()) - 256)
+            DataWord(this.programInvoke.getRepository().getBlockHashByNumber(index.toLong(), getPrevHash().getData())).clone()
+        else
+            DataWord.ZERO.clone()
+    }
+
+    fun getCoinbase(): DataWord {
+        return programInvoke.getCoinbase().clone()
+    }
+
+    fun getTimestamp(): DataWord {
+        return programInvoke.getTimestamp().clone()
+    }
+
+    fun getDifficulty(): DataWord {
+        return programInvoke.getDifficulty().clone()
+    }
+
+    fun getGasLimit(): DataWord {
+        return programInvoke.getGaslimit().clone()
+    }
+
+    fun isStaticCall(): Boolean {
+        return programInvoke.isStaticCall()
+    }
+
+    fun storageSave(key: ByteArray, `val`: ByteArray) {
+        val keyWord = DataWord(key)
+        val valWord = DataWord(`val`)
+        getStorage().addStorageRow(getOwnerAddress().getLast20Bytes(), keyWord, valWord)
+    }
+
+    fun storageSave(word1: DataWord, word2: DataWord) {
+        storageSave(word1.getData(), word2.getData())
+    }
+
     companion object {
 
         fun formatBinData(binData: ByteArray, startPC: Int): String {
@@ -337,6 +442,8 @@ class Program(private val ops: ByteArray, private val programInvoke: ProgramInvo
     open class BytecodeExecutionException(message: String) : RuntimeException(message)
 
     inner class StackTooLargeException(message: String) : BytecodeExecutionException(message)
+    class StaticCallModificationException : BytecodeExecutionException("Attempt to call a state modifying opcode inside STATICCALL")
+    class ReturnDataCopyIllegalBoundsException(off: DataWord, size: DataWord, returnDataSize: Long) : BytecodeExecutionException(String.format("Illegal RETURNDATACOPY arguments: offset (%s) + size (%s) > RETURNDATASIZE (%d)", off, size, returnDataSize))
 
     class OutOfGasException(message: String, vararg args: Any) : BytecodeExecutionException(format(message, *args))
 
