@@ -1,8 +1,10 @@
 package io.lunarchain.lunarcoin.storage
 
+import io.lunarchain.lunarcoin.core.AccountState
 import io.lunarchain.lunarcoin.core.AccountWithKey
 import io.lunarchain.lunarcoin.core.Block
 import io.lunarchain.lunarcoin.core.Transaction
+import lunar.vm.DataWord
 import java.math.BigInteger
 
 interface Repository {
@@ -35,5 +37,9 @@ interface Repository {
     fun changeAccountStateRoot(stateRoot: ByteArray)
     fun getAccountStateRoot(): ByteArray?
     fun updateBlockInfo(height: Long, blockInfo: BlockInfo)
+    fun isExist(address: ByteArray): Boolean
+    fun getStorageValue(addr: ByteArray, key: DataWord): DataWord
+    fun getAccountState(address: ByteArray): AccountState
+
 }
 
