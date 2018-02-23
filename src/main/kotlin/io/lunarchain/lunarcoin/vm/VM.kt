@@ -902,6 +902,17 @@ object VM {
                 program.step()
             }
 
+            OpCode.JUMP -> {
+                val pos = program.stackPop()
+                val nextPC = program.verifyJumpDest(pos)
+
+                if (logger.isInfoEnabled)
+                    hint = "~> " + nextPC
+
+                program.setPC(nextPC)
+
+            }
+
         }
 
     }

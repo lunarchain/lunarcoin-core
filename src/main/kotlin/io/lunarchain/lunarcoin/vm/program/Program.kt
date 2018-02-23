@@ -392,6 +392,19 @@ class Program(private val ops: ByteArray, private val programInvoke: ProgramInvo
         storageSave(word1.getData(), word2.getData())
     }
 
+    fun verifyJumpDest(nextPC: DataWord): Int {
+        if (nextPC.bytesOccupied() > 4) {
+            throw Program.badJumpDestination(-1)
+        }
+        val ret = nextPC.intValue()
+        /*
+        if (!getProgramPrecompile().hasJumpDest(ret)) {
+            throw Program.Exception.badJumpDestination(ret)
+        }
+        */
+        return ret
+    }
+
     companion object {
 
         fun formatBinData(binData: ByteArray, startPC: Int): String {
