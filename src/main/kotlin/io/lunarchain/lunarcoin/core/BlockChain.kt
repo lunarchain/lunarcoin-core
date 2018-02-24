@@ -3,8 +3,8 @@ package io.lunarchain.lunarcoin.core
 import io.lunarchain.lunarcoin.config.BlockChainConfig
 import io.lunarchain.lunarcoin.config.Constants.BLOCK_REWARD
 import io.lunarchain.lunarcoin.storage.BlockInfo
-import io.lunarchain.lunarcoin.storage.Repository
 import io.lunarchain.lunarcoin.storage.MemoryDataSource
+import io.lunarchain.lunarcoin.storage.Repository
 import io.lunarchain.lunarcoin.trie.PatriciaTrie
 import io.lunarchain.lunarcoin.util.BlockChainUtil
 import io.lunarchain.lunarcoin.util.CodecUtil
@@ -48,6 +48,7 @@ class BlockChain(val config: BlockChainConfig, val repository: Repository) {
 
     fun updateBestBlock(newBlock: Block) {
         logger.debug("Updating best block to ${Hex.toHexString(newBlock.hash)}")
+        repository.changeAccountStateRoot(newBlock.stateRoot)
         repository.updateBestBlock(newBlock)
         this.bestBlock = newBlock
     }
@@ -56,9 +57,7 @@ class BlockChain(val config: BlockChainConfig, val repository: Repository) {
      * 构造新的区块，要素信息为：区块高度(height)，父区块的哈希值(parentHash), 交易记录(transactions)，时间戳(time)。
      * 新的区块不会影响当前区块链的状态。
      */
-    fun generateNewBlock(transactions: List<Transaction>): Block {
-        val parent = bestBlock
-
+    fun generateNewBlock(parent: Block, transactions: List<Transaction>): Block {
         val coinbaseTransaction = generateCoinBaseTransaction()
         val transactionsToInclude = listOf(coinbaseTransaction) + transactions
 
@@ -137,91 +136,92 @@ class BlockChain(val config: BlockChainConfig, val repository: Repository) {
             return ImportResult.INVALID_BLOCK
         }
 
+        if (block.height < bestBlock.height && repository.getBlock(block.hash) != null) {
+            return ImportResult.EXIST
+        }
+
         if (isNextBlock(block)) {
-            val blockToSave = processBlock(block)
-            logger.debug("Push block $blockToSave to end of chain.")
+            val processedBlock = processAndSaveBlock(block)
 
-            repository.saveBlock(blockToSave)
-
-            updateMainBlockInfo(blockToSave)
-
-            logger.debug("Block hash: ${Hex.toHexString(blockToSave.hash)}")
-
-            updateBestBlock(blockToSave)
+            updateMainBlockInfo(processedBlock)
+            updateBestBlock(processedBlock)
 
             return ImportResult.BEST_BLOCK
         } else {
-            if (block.height < bestBlock.height) {
-                if (repository.getBlock(block.hash) != null) { // Already exist
-                    logger.debug(
-                        "Block already exist. hash: ${Hex.toHexString(block.hash)}, height: ${block.height}"
-                    )
+            if (repository.getBlock(block.parentHash) != null) { // Fork
+                logger.debug("Fork block $block.")
 
-                    return ImportResult.EXIST
-                } else if (repository.getBlock(block.parentHash) != null) { // Branch fork
-                    logger.debug("Import branch block $block.")
-
-                    return importBranchBlock(block)
-                } else {
-                    logger.debug("Import block without parent block $block.")
-
-                    return importBranchBlock(block)
-                }
-            } else if (block.height == bestBlock.height) {
-                if (repository.getBlock(block.hash) != null) { // Already exist
-                    logger.debug(
-                        "Block already exist. hash: ${Hex.toHexString(block.hash)}, height: ${block.height}"
-                    )
-
-                    return ImportResult.EXIST
-                } else if (repository.getBlock(block.parentHash) != null) { // Fork
-                    logger.debug("Fork block $block.")
-
-                    return forkBlock(block)
-                } else {
-                    logger.debug("Import block without parent block $block.")
-
-                    return importBranchBlock(block)
-                }
+                return forkBlock(block)
             } else {
-                logger.debug("Import block without parent block $block.")
+                logger.debug("Discard block without parent block $block.")
 
-                return importBranchBlock(block)
+                return ImportResult.NO_PARENT
             }
-        }
 
+        }
+    }
+
+    private fun processAndSaveBlock(block: Block): Block {
+        val blockToSave = processBlock(block)
+        logger.debug("Push block $blockToSave to end of chain.")
+
+        repository.saveBlock(blockToSave)
+
+        logger.debug("Block hash: ${Hex.toHexString(blockToSave.hash)}")
+
+        return blockToSave
     }
 
     private fun forkBlock(block: Block): ImportResult {
-        repository.saveBlock(block)
-        updateMainBlockInfo(block)
-
         val parentBlockHash = block.parentHash
-        var parentBlock = repository.getBlock(parentBlockHash)
+        var parentBlock = repository.getBlock(parentBlockHash) ?: return ImportResult.NO_PARENT
 
-        while (parentBlock != null) {
-            val parentBlockInfo = repository.getBlockInfo(parentBlockHash)
+        // 1. 保存当前StateRoot
+        val oldBestBlock = bestBlock
 
-            if (parentBlockInfo == null) {
-                break
-            }
+        // 2. 切换StateRoot到父区块
+        repository.changeAccountStateRoot(parentBlock.stateRoot)
 
-            if (parentBlockInfo.isMain) {
-                break
-            } else {
-                updateMainBlockInfo(parentBlock)
-            }
+        // 3. 处理并保存Block
+        val blockProcessed = processAndSaveBlock(block)
 
-            parentBlock = repository.getBlock(parentBlock.parentHash)
+        // 4. 根据总难度来判断是否需要切换主分支
+        if (blockProcessed.totalDifficulty > oldBestBlock.totalDifficulty) { // 切换主分支
+            rebranch(blockProcessed, oldBestBlock)
+            updateBestBlock(blockProcessed)
+        } else { // 不需要分叉，把新区块作为分支记录下来
+            updateBranchBlockInfo(blockProcessed)
+            updateBestBlock(oldBestBlock)
         }
+
         return ImportResult.BEST_BLOCK
     }
 
-    private fun importBranchBlock(block: Block): ImportResult {
-        repository.saveBlock(block)
-        updateBranchBlockInfo(block)
+    private fun rebranch(newBestBlock: Block, oldBestBlock: Block){
+        // 1. 主链与新链先退至同一高度
+        var newLine = newBestBlock
+        if (newBestBlock.height > oldBestBlock.height) {
+            while(newLine.height > oldBestBlock.height) {
+                updateMainBlockInfo(newLine)
+                newLine = repository.getBlock(newLine.parentHash)!!
+            }
+        }
 
-        return ImportResult.NON_BEST_BLOCK
+        var oldLine = oldBestBlock
+        if (oldBestBlock.height > newBestBlock.height) {
+            while(oldLine.height > newBestBlock.height) {
+                updateBranchBlockInfo(oldLine)
+                oldLine = repository.getBlock(oldLine.parentHash)!!
+            }
+        }
+
+        // 2. 退至公共区块
+        while(!newLine.hash.contentEquals(oldLine.hash)) {
+            updateMainBlockInfo(newLine)
+            newLine = repository.getBlock(newLine.parentHash)!!
+            updateBranchBlockInfo(oldLine)
+            oldLine = repository.getBlock(oldLine.parentHash)!!
+        }
     }
 
     private fun updateMainBlockInfo(block: Block) {
