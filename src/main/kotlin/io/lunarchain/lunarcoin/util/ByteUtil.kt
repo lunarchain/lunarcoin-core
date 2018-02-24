@@ -103,4 +103,69 @@ object ByteUtil {
             }
         }
     }
+
+    /**
+     * Parses fixed number of bytes starting from `offset` in `input` array.
+     * If `input` has not enough bytes return array will be right padded with zero bytes.
+     * I.e. if `offset` is higher than `input.length` then zero byte array of length `len` will be returned
+     */
+    fun parseBytes(input: ByteArray, offset: Int, len: Int): ByteArray {
+
+        if (offset >= input.size || len == 0)
+            return EMPTY_BYTE_ARRAY
+
+        val bytes = ByteArray(len)
+        System.arraycopy(input, offset, bytes, 0, Math.min(input.size - offset, len))
+        return bytes
+    }
+
+    /**
+     * Returns a number of zero bits preceding the highest-order ("leftmost") one-bit
+     * interpreting input array as a big-endian integer value
+     */
+    fun numberOfLeadingZeros(bytes: ByteArray): Int {
+
+        val i = firstNonZeroByte(bytes)
+
+        if (i == -1) {
+            return bytes.size * 8
+        } else {
+            val byteLeadingZeros = Integer.numberOfLeadingZeros(bytes[i].toInt() and 0xff) - 24
+            return i * 8 + byteLeadingZeros
+        }
+    }
+
+    /**
+     * Cast hex encoded value from byte[] to BigInteger
+     * null is parsed like byte[0]
+     *
+     * @param bb byte array contains the values
+     * @return unsigned positive BigInteger value.
+     */
+    fun bytesToBigInteger(bb: ByteArray?): BigInteger {
+        return if (bb == null || bb.size == 0) BigInteger.ZERO else BigInteger(1, bb)
+    }
+
+    /**
+     * Parses 32-bytes word from given input.
+     * Uses [.parseBytes] method,
+     * thus, result will be right-padded with zero bytes if there is not enough bytes in `input`
+     *
+     * @param idx an index of the word starting from `0`
+     */
+    fun parseWord(input: ByteArray, idx: Int): ByteArray {
+        return parseBytes(input, 32 * idx, 32)
+    }
+
+    /**
+     * Parses 32-bytes word from given input.
+     * Uses [.parseBytes] method,
+     * thus, result will be right-padded with zero bytes if there is not enough bytes in `input`
+     *
+     * @param idx an index of the word starting from `0`
+     * @param offset an offset in `input` array to start parsing from
+     */
+    fun parseWord(input: ByteArray, offset: Int, idx: Int): ByteArray {
+        return parseBytes(input, offset + 32 * idx, 32)
+    }
 }

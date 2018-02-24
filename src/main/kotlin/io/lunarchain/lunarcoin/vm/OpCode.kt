@@ -697,4 +697,12 @@ enum class OpCode(private val op: Int, private val require: Int,
          */
         Delegate
     }
+
+    /**
+     * Indicates that the code is executed in the context of the caller
+     */
+    fun callIsStateless(): Boolean {
+        checkCall()
+        return getCallFlags().contains(CallFlags.Stateless)
+    }
 }

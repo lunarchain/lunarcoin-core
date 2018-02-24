@@ -37,6 +37,8 @@ class DataWord(): Comparable<DataWord> {
 
     constructor(num: Long): this(ByteBuffer.allocate(8).putLong(num))
 
+    constructor(data: String): this(Hex.decode(data))
+
 
     fun getData(): ByteArray {
         return this.data
@@ -280,6 +282,11 @@ class DataWord(): Comparable<DataWord> {
 
         return if (pref.size < 7) Hex.toHexString(pref) else Hex.toHexString(pref).substring(0, 6)
 
+    }
+
+    fun shortHex(): String {
+        val hexValue = Hex.toHexString(getNoLeadZeroesData()).toUpperCase()
+        return "0x" + hexValue.replaceFirst("^0+(?!$)".toRegex(), "")
     }
 
     /**

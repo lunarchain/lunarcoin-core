@@ -3,17 +3,25 @@ package io.lunarchain.lunarcoin.util
 import io.lunarchain.lunarcoin.core.Block
 import io.lunarchain.lunarcoin.core.Transaction
 import io.lunarchain.lunarcoin.trie.Trie
+import io.lunarchain.lunarcoin.util.BIUtil.isLessThan
+import org.spongycastle.asn1.sec.SECNamedCurves
+import org.spongycastle.asn1.x9.X9IntegerConverter
 import org.spongycastle.crypto.params.ECDomainParameters
 import org.spongycastle.jcajce.provider.asymmetric.ec.BCECPrivateKey
 import org.spongycastle.jce.ECNamedCurveTable
 import org.spongycastle.jce.provider.BouncyCastleProvider
 import org.spongycastle.jce.spec.ECPublicKeySpec
+import org.spongycastle.math.ec.ECAlgorithms
+import org.spongycastle.math.ec.ECCurve
+import org.spongycastle.math.ec.ECPoint
+import java.math.BigInteger
 import java.security.*
 import java.security.Security.insertProviderAt
 import java.security.interfaces.ECPublicKey
 import java.security.spec.ECGenParameterSpec
 import java.security.spec.PKCS8EncodedKeySpec
 import java.security.spec.X509EncodedKeySpec
+import java.util.*
 import javax.crypto.Cipher
 import javax.crypto.EncryptedPrivateKeyInfo
 import javax.crypto.SecretKeyFactory
@@ -30,6 +38,9 @@ class CryptoUtil {
         init {
             insertProviderAt(BouncyCastleProvider(), 1)
         }
+
+        val params = SECNamedCurves.getByName("secp256k1")
+        val CURVE: ECDomainParameters = ECDomainParameters(params.curve, params.g, params.n, params.h);
 
         /**
          * 根据公钥(public key)推算出账户地址，使用以太坊的算法，先KECCAK-256计算哈希值(32位)，取后20位作为账户地址。
@@ -204,6 +215,176 @@ class CryptoUtil {
             digest.update(trx.encode())
             return digest.digest()
         }
+
+        class ECDSASignature() {
+
+            private val SECP256K1N = BigInteger("fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141", 16)
+            /**
+             * The two components of the signature.
+             */
+            var r: BigInteger? = null
+            var s: BigInteger? = null
+            var v: Byte = 0
+
+            constructor(r: BigInteger, s: BigInteger): this() {
+                this.r = r
+                this.s = s
+            }
+
+
+            /**
+             * t
+             * @param r
+             * @param s
+             * @return -
+             */
+            private fun fromComponents(r: ByteArray, s: ByteArray): ECDSASignature {
+                return ECDSASignature(BigInteger(1, r), BigInteger(1, s))
+            }
+
+            /**
+             *
+             * @param r -
+             * @param s -
+             * @param v -
+             * @return -
+             */
+            fun fromComponents(r: ByteArray, s: ByteArray, v: Byte): ECDSASignature {
+                val signature = fromComponents(r, s)
+                signature.v = v
+                return signature
+            }
+
+            fun validateComponents(): Boolean {
+                return validateComponents(r, s, v)
+            }
+
+            fun validateComponents(r: BigInteger?, s: BigInteger?, v: Byte): Boolean {
+                if(r == null || s == null) return false
+                if (v.toInt() != 27 && v.toInt() != 28) return false
+
+                if (isLessThan(r, BigInteger.ONE)) return false
+                if (isLessThan(s, BigInteger.ONE)) return false
+
+                if (!isLessThan(r, SECP256K1N)) return false
+                return if (!isLessThan(s, SECP256K1N)) false else true
+
+            }
+
+        }
+
+
+        /**
+         * Decompress a compressed public key (x co-ord and low-bit of y-coord).
+         *
+         * @param xBN -
+         * @param yBit -
+         * @return -
+         */
+        private fun decompressKey(xBN: BigInteger, yBit: Boolean): ECPoint {
+            val x9 = X9IntegerConverter()
+            val compEnc = x9.integerToBytes(xBN, 1 + x9.getByteLength(CURVE.getCurve()))
+            compEnc[0] = (if (yBit) 0x03 else 0x02).toByte()
+            return CURVE.getCurve().decodePoint(compEnc)
+        }
+
+        fun recoverPubBytesFromSignature(recId: Int, sig: ECDSASignature, messageHash: ByteArray?): ByteArray? {
+            check(recId >= 0, "recId must be positive")
+            check(sig.r!!.signum() >= 0, "r must be positive")
+            check(sig.s!!.signum() >= 0, "s must be positive")
+            check(messageHash != null, "messageHash must not be null")
+            // 1.0 For j from 0 to h   (h == recId here and the loop is outside this function)
+            //   1.1 Let x = r + jn
+            val n = CURVE.getN()  // Curve order.
+            val i = BigInteger.valueOf(recId.toLong() / 2)
+            val x = sig.r!!.add(i.multiply(n))
+            //   1.2. Convert the integer x to an octet string X of length mlen using the conversion routine
+            //        specified in Section 2.3.7, where mlen = ⌈(log2 p)/8⌉ or mlen = ⌈m/8⌉.
+            //   1.3. Convert the octet string (16 set binary digits)||X to an elliptic curve point R using the
+            //        conversion routine specified in Section 2.3.4. If this conversion routine outputs “invalid”, then
+            //        do another iteration of Step 1.
+            //
+            // More concisely, what these points mean is to use X as a compressed public key.
+            val curve = CURVE.getCurve() as ECCurve.Fp
+            val prime = curve.q  // Bouncy Castle is not consistent about the letter it uses for the prime.
+            if (x.compareTo(prime) >= 0) {
+                // Cannot have point co-ordinates larger than this as everything takes place modulo Q.
+                return null
+            }
+            // Compressed keys require you to know an extra bit of data about the y-coord as there are two possibilities.
+            // So it's encoded in the recId.
+            val R = decompressKey(x, recId and 1 == 1)
+            //   1.4. If nR != point at infinity, then do another iteration of Step 1 (callers responsibility).
+            if (!R.multiply(n).isInfinity())
+                return null
+            //   1.5. Compute e from M using Steps 2 and 3 of ECDSA signature verification.
+            val e = BigInteger(1, messageHash!!)
+            //   1.6. For k from 1 to 2 do the following.   (loop is outside this function via iterating recId)
+            //   1.6.1. Compute a candidate public key as:
+            //               Q = mi(r) * (sR - eG)
+            //
+            // Where mi(x) is the modular multiplicative inverse. We transform this into the following:
+            //               Q = (mi(r) * s ** R) + (mi(r) * -e ** G)
+            // Where -e is the modular additive inverse of e, that is z such that z + e = 0 (mod n). In the above equation
+            // ** is point multiplication and + is point addition (the EC group operator).
+            //
+            // We can find the additive inverse by subtracting e from zero then taking the mod. For example the additive
+            // inverse of 3 modulo 11 is 8 because 3 + 8 mod 11 = 0, and -3 mod 11 = 8.
+            val eInv = BigInteger.ZERO.subtract(e).mod(n)
+            val rInv = sig.r!!.modInverse(n)
+            val srInv = rInv.multiply(sig.s).mod(n)
+            val eInvrInv = rInv.multiply(eInv).mod(n)
+            val q = ECAlgorithms.sumOfTwoMultiplies(CURVE.getG(), eInvrInv, R, srInv) as ECPoint.Fp
+            return q.getEncoded(/* compressed */false)
+        }
+
+
+        private fun check(test: Boolean, message: String) {
+            if (!test) throw IllegalArgumentException(message)
+        }
+
+        @Throws(SignatureException::class)
+        fun signatureToKeyBytes(messageHash: ByteArray, sig: ECDSASignature): ByteArray {
+            check(messageHash.size == 32, "messageHash argument has length " + messageHash.size)
+            var header = sig.v.toInt()
+            // The header byte: 0x1B = first key with even y, 0x1C = first key with odd y,
+            //                  0x1D = second key with even y, 0x1E = second key with odd y
+            if (header < 27 || header > 34)
+                throw SignatureException("Header byte out of range: " + header)
+            if (header >= 31) {
+                header -= 4
+            }
+            val recId = header - 27
+            return this.recoverPubBytesFromSignature(recId, sig, messageHash)
+                    ?: throw SignatureException("Could not recover public key from signature")
+        }
+
+
+        /**
+         * Compute an address from an encoded public key.
+         *
+         * @param pubBytes an encoded (uncompressed) public key
+         * @return 20-byte address
+         */
+        fun computeAddress(pubBytes: ByteArray): ByteArray {
+            return HashUtil.sha3omit12(
+                Arrays.copyOfRange(pubBytes, 1, pubBytes.size)
+            )
+        }
+
+        /**
+         * Compute the address of the key that signed the given signature.
+         *
+         * @param messageHash 32-byte hash of message
+         * @param sig -
+         * @return 20-byte address
+         */
+        @Throws(SignatureException::class)
+        fun signatureToAddress(messageHash: ByteArray, sig: ECDSASignature): ByteArray {
+            return computeAddress(signatureToKeyBytes(messageHash, sig))
+        }
+
+
     }
 
 }

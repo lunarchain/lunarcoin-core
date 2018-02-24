@@ -4,6 +4,8 @@ import io.lunarchain.lunarcoin.core.Transaction
 import io.lunarchain.lunarcoin.util.ByteArraySet
 import io.lunarchain.lunarcoin.util.ByteUtil.EMPTY_BYTE_ARRAY
 import io.lunarchain.lunarcoin.util.Utils
+import io.lunarchain.lunarcoin.vm.MessageCall
+import io.lunarchain.lunarcoin.vm.PrecompiledContracts
 import lunar.vm.DataWord
 import lunar.vm.OpCode
 import lunar.vm.program.invoke.ProgramInvoke
@@ -403,6 +405,27 @@ class Program(private val ops: ByteArray, private val programInvoke: ProgramInvo
         }
         */
         return ret
+    }
+
+    fun createContract(value: DataWord, memStart: DataWord, memSize: DataWord) {
+
+    }
+
+    fun callToPrecompiledAddress(msg: MessageCall, contract: PrecompiledContracts.PrecompiledContract) {
+
+    }
+
+    fun callToAddress(msg: MessageCall) {
+
+    }
+
+
+    fun suicide(obtainerAddress: DataWord) {
+
+    }
+
+    fun fullTrace() {
+
     }
 
     companion object {

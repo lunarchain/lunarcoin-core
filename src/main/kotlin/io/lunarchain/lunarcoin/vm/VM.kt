@@ -3,6 +3,8 @@ package lunar.vm
 import io.lunarchain.lunarcoin.util.ByteUtil.EMPTY_BYTE_ARRAY
 import io.lunarchain.lunarcoin.util.CryptoUtil.Companion.sha3
 import io.lunarchain.lunarcoin.vm.LogInfo
+import io.lunarchain.lunarcoin.vm.MessageCall
+import io.lunarchain.lunarcoin.vm.PrecompiledContracts
 import lunar.vm.config.VMConfig
 import lunar.vm.program.Program
 import org.slf4j.LoggerFactory
@@ -913,7 +915,217 @@ object VM {
 
             }
 
+            OpCode.JUMPI -> {
+                val pos = program.stackPop()
+                val cond = program.stackPop()
+
+                if (!cond.isZero()) {
+                    val nextPC = program.verifyJumpDest(pos)
+
+                    if (logger.isInfoEnabled)
+                        hint = "~> " + nextPC
+
+                    program.setPC(nextPC)
+                } else {
+                    program.step()
+                }
+            }
+
+            OpCode.PC -> {
+                val pc = program.getPC()
+                val pcWord = DataWord(pc)
+
+                if (logger.isInfoEnabled)
+                    hint = pcWord.toString()
+
+                program.stackPush(pcWord)
+                program.step()
+            }
+
+            OpCode.MSIZE -> {
+                val memSize = program.getMemSize()
+                val wordMemSize = DataWord(memSize)
+
+                if (logger.isInfoEnabled)
+                    hint = "" + memSize
+
+                program.stackPush(wordMemSize)
+                program.step()
+            }
+
+            OpCode.GAS -> {
+                val gas = program.getGas()
+
+                if (logger.isInfoEnabled)
+                    hint = "" + gas
+
+                program.stackPush(gas)
+                program.step()
+            }
+
+
+            OpCode.PUSH1,
+            OpCode.PUSH2,
+            OpCode.PUSH3,
+            OpCode.PUSH4,
+            OpCode.PUSH5,
+            OpCode.PUSH6,
+            OpCode.PUSH7,
+            OpCode.PUSH8,
+            OpCode.PUSH9,
+            OpCode.PUSH10,
+            OpCode.PUSH11,
+            OpCode.PUSH12,
+            OpCode.PUSH13,
+            OpCode.PUSH14,
+            OpCode.PUSH15,
+            OpCode.PUSH16,
+            OpCode.PUSH17,
+            OpCode.PUSH18,
+            OpCode.PUSH19,
+            OpCode.PUSH20,
+            OpCode.PUSH21,
+            OpCode.PUSH22,
+            OpCode.PUSH23,
+            OpCode.PUSH24,
+            OpCode.PUSH25,
+            OpCode.PUSH26,
+            OpCode.PUSH27,
+            OpCode.PUSH28,
+            OpCode.PUSH29,
+            OpCode.PUSH30,
+            OpCode.PUSH31,
+            OpCode.PUSH32 -> {
+                program.step()
+                val nPush = op.`val`() - OpCode.PUSH1.`val`() + 1
+
+                val data = program.sweep(nPush)
+
+                if (logger.isInfoEnabled)
+                    hint = "" + Hex.toHexString(data)
+
+                program.stackPush(data)
+            }
+
+            OpCode.JUMPDEST -> { program.step() }
+            OpCode.CREATE -> {
+                if (program.isStaticCall()) throw Program.StaticCallModificationException()
+
+                val value = program.stackPop()
+                val inOffset = program.stackPop()
+                val inSize = program.stackPop()
+
+                if (logger.isInfoEnabled)
+                    logger.info(logString, String.format("%5s", "[" + program.getPC() + "]"),
+                            String.format("%-12s", op.name),
+                            program.getGas().value(),
+                            program.getCallDeep(), hint)
+
+                program.createContract(value, inOffset, inSize)
+                program.step()
+            }
+            OpCode.CALL,
+            OpCode.CALLCODE,
+            OpCode.DELEGATECALL,
+            OpCode.STATICCALL -> {
+                program.stackPop() // use adjustedCallGas instead of requested
+                val codeAddress = program.stackPop()
+                val value = if (op.callHasValue())
+                    program.stackPop()
+                else
+                    DataWord.ZERO
+
+                if (program.isStaticCall() && op === OpCode.CALL && !value.isZero())
+                    throw Program.StaticCallModificationException()
+
+                if (!value.isZero()) {
+                    adjustedCallGas!!.add(DataWord(gasCosts.getSTIPEND_CALL()))
+                }
+
+                val inDataOffs = program.stackPop()
+                val inDataSize = program.stackPop()
+
+                val outDataOffs = program.stackPop()
+                val outDataSize = program.stackPop()
+
+                if (logger.isInfoEnabled) {
+                    hint = ("addr: " + Hex.toHexString(codeAddress.getLast20Bytes())
+                            + " gas: " + adjustedCallGas!!.shortHex()
+                            + " inOff: " + inDataOffs.shortHex()
+                            + " inSize: " + inDataSize.shortHex())
+                    logger.info(logString, String.format("%5s", "[" + program.getPC() + "]"),
+                            String.format("%-12s", op.name),
+                            program.getGas().value(),
+                            program.getCallDeep(), hint)
+                }
+
+                program.memoryExpand(outDataOffs, outDataSize)
+
+                val msg = MessageCall(
+                        op, adjustedCallGas!!, codeAddress, value, inDataOffs, inDataSize,
+                        outDataOffs, outDataSize)
+
+                val contract = PrecompiledContracts.getContractForAddress(codeAddress)
+
+                if (!op.callIsStateless()) {
+                    program.getResult().addTouchAccount(codeAddress.getLast20Bytes())
+                }
+
+                if (contract != null) {
+                    program.callToPrecompiledAddress(msg, contract)
+                } else {
+                    program.callToAddress(msg)
+                }
+                program.step()
+            }
+            OpCode.RETURN,
+            OpCode.REVERT -> {
+                val offset = program.stackPop()
+                val size = program.stackPop()
+
+                val hReturn = program.memoryChunk(offset.intValueSafe(), size.intValueSafe())
+                program.setHReturn(hReturn)
+
+                if (logger.isInfoEnabled)
+                    hint = ("data: " + Hex.toHexString(hReturn)
+                            + " offset: " + offset.value()
+                            + " size: " + size.value())
+
+                program.step()
+                program.stop()
+
+                if (op === OpCode.REVERT) {
+                    program.getResult().setRevert()
+                }
+            }
+            OpCode.SUICIDE -> {
+                if (program.isStaticCall()) throw Program.StaticCallModificationException()
+
+                val address = program.stackPop()
+                program.suicide(address)
+                program.getResult().addTouchAccount(address.getLast20Bytes())
+
+                if (logger.isInfoEnabled)
+                    hint = "address: " + Hex.toHexString(program.getOwnerAddress().getLast20Bytes())
+
+                program.stop()
+            }
+
         }
+        program.setPreviouslyExecutedOp(op.`val`())
+
+        if (logger.isInfoEnabled && !op.isCall())
+            logger.info(
+                logString, String.format("%5s", "[" + program.getPC() + "]"),
+                String.format(
+                    "%-12s",
+                    op.name
+                ), program.getGas().value(),
+                program.getCallDeep(), hint
+            )
+
+        vmCounter++
+        program.fullTrace()
 
     }
 
