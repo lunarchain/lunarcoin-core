@@ -2,6 +2,7 @@ package io.lunarchain.lunarcoin.network.message.handler
 
 import io.lunarchain.lunarcoin.core.Block
 import io.lunarchain.lunarcoin.core.BlockChainManager
+import io.lunarchain.lunarcoin.core.BlockHeader
 import io.lunarchain.lunarcoin.core.Node
 import io.lunarchain.lunarcoin.network.Peer
 import io.lunarchain.lunarcoin.network.message.*
@@ -41,6 +42,8 @@ class MessageDecodeHandler(val peer: Peer) : ByteToMessageDecoder() {
                 MessageCodes.NEW_BLOCK.code -> processNewBlock(NewBlockMessage.decode(buffer))
                 MessageCodes.GET_BLOCKS.code -> processGetBlocks(GetBlocksMessage.decode(buffer))
                 MessageCodes.BLOCKS.code -> processBlocks(BlocksMessage.decode(buffer))
+                MessageCodes.GET_BLOCK_HEADERS.code -> processGetBlockHeaders(GetBlockHeadersMessage.decode(buffer))
+                MessageCodes.BLOCK_HEADERS.code -> processBlockHeaders(BlockHeadersMessage.decode(buffer))
             }
         } catch (e: Exception) {
             logger.error("Process message packet failed!")
@@ -182,6 +185,43 @@ class MessageDecodeHandler(val peer: Peer) : ByteToMessageDecoder() {
         logger.debug(
             "Peer status { Protocol Version:${msg.protocolVersion} NetworkId:${msg.networkId} Total Difficulty:${msg.totalDifficulty} }"
         )
+    }
+
+    private fun processGetBlockHeaders(msg: GetBlockHeadersMessage?) {
+
+        logger.debug("Processing GetBlockHeadersMessage")
+
+        if (msg == null) {
+            throw MessageDecodeException("GetBlockHeadersMessage decode failed.")
+        }
+
+        val fromHeight = msg.fromHeight
+        val numOfBlocks = msg.numOfBlocks
+
+        val blockHashs = mutableListOf<ByteArray>()
+        for (i in fromHeight..fromHeight + numOfBlocks) {
+            val blockInfos = repository.getBlockInfos(i)
+
+            blockInfos?.forEach { if (it.isMain) blockHashs.add(it.hash) }
+        }
+
+        val headers = mutableListOf<BlockHeader>()
+        blockHashs.forEach { repository.getBlock(it)?.let { headers.add(it.header) } }
+
+        peer.sendBlockHeaders(headers)
+    }
+
+    /**
+     * Blocks handler.
+     */
+    private fun processBlockHeaders(msg: BlockHeadersMessage?) {
+        logger.debug("Processing BlockHeadersMessage")
+
+        if (msg == null) {
+            throw MessageDecodeException("BlockHeadersMessage decode failed.")
+        }
+
+        // TODO
     }
 
 }
