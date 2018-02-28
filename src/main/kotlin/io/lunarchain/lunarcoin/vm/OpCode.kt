@@ -623,6 +623,10 @@ enum class OpCode(private val op: Int, private val require: Int,
         fun code(code: Byte): OpCode? {
             return intToTypeMap[code.toInt() and 0xFF]
         }
+
+        fun byteVal(code: String): Byte {
+            return stringToByteMap[code]!!
+        }
     }
 
 
@@ -705,4 +709,5 @@ enum class OpCode(private val op: Int, private val require: Int,
         checkCall()
         return getCallFlags().contains(CallFlags.Stateless)
     }
+
 }

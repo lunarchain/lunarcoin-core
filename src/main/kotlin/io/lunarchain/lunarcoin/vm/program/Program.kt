@@ -408,24 +408,25 @@ class Program(private val ops: ByteArray, private val programInvoke: ProgramInvo
     }
 
     fun createContract(value: DataWord, memStart: DataWord, memSize: DataWord) {
+        //TODO("NOT IMPLEMENTED")
 
     }
 
     fun callToPrecompiledAddress(msg: MessageCall, contract: PrecompiledContracts.PrecompiledContract) {
-
+        //TODO("NOT IMPLEMENTED")
     }
 
     fun callToAddress(msg: MessageCall) {
-
+        //TODO("NOT IMPLEMENTED")
     }
 
 
     fun suicide(obtainerAddress: DataWord) {
-
+        //TODO("NOT IMPLEMENTED")
     }
 
     fun fullTrace() {
-
+        //TODO("NOT IMPLEMENTED")
     }
 
     companion object {

@@ -150,6 +150,12 @@ class DataWord(): Comparable<DataWord> {
         this.data = result
     }
 
+    // old add-method with BigInteger quick hack
+    fun add2(word: DataWord) {
+        val result = value().add(word.value())
+        this.data = ByteUtil.copyToArray(result.and(MAX_VALUE))
+    }
+
     // TODO: mul can be done in more efficient way
     // TODO:     with shift left shift right trick
     // TODO      without BigInteger quick hack
@@ -273,6 +279,10 @@ class DataWord(): Comparable<DataWord> {
 
     fun getNoLeadZeroesData(): ByteArray? {
         return ByteUtil.stripLeadingZeroes(data)
+    }
+
+    override fun toString(): String {
+        return Hex.toHexString(data)
     }
 
     fun toPrefixString(): String {
