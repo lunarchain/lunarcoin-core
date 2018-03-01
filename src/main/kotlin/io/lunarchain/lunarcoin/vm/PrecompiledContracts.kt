@@ -41,16 +41,16 @@ object PrecompiledContracts {
     fun getContractForAddress(address: DataWord?): PrecompiledContract? {
 
         if (address == null) return identity
-        if (address.equals(ecRecoverAddr)) return ecRecover
-        if (address.equals(sha256Addr)) return sha256
-        if (address.equals(ripempd160Addr)) return ripempd160
-        if (address.equals(identityAddr)) return identity
+        if (address == (ecRecoverAddr)) return ecRecover
+        if (address == (sha256Addr)) return sha256
+        if (address == (ripempd160Addr)) return ripempd160
+        if (address == (identityAddr)) return identity
 
         // Byzantium precompiles
-        if (address.equals(modExpAddr)) return modExp
-        if (address.equals(altBN128AddAddr)) return altBN128Add
-        if (address.equals(altBN128MulAddr)) return altBN128Mul
-        return if (address.equals(altBN128PairingAddr)) altBN128Pairing else null
+        if (address == (modExpAddr)) return modExp
+        if (address == (altBN128AddAddr)) return altBN128Add
+        if (address == (altBN128MulAddr)) return altBN128Mul
+        return if (address == (altBN128PairingAddr)) altBN128Pairing else null
 
     }
 

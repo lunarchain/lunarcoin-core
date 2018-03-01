@@ -308,4 +308,14 @@ class DataWord(): Comparable<DataWord> {
         val intValue = intValue()
         return if (bytesOccupied > 4 || intValue < 0) Integer.MAX_VALUE else intValue
     }
+
+    override fun equals(o: Any?): Boolean {
+        if (this === o) return true
+        if (o == null || javaClass != o.javaClass) return false
+
+        val dataWord = o as DataWord?
+
+        return java.util.Arrays.equals(data, dataWord!!.data)
+
+    }
 }
