@@ -22,9 +22,15 @@ import java.lang.reflect.Array.getLength
 import java.math.BigInteger
 import java.util.*
 
-class Program(private val ops: ByteArray, private val programInvoke: ProgramInvoke, private val transaction: Transaction) {
+class Program(private val ops: ByteArray, private val programInvoke: ProgramInvoke) {
 
     private val logger = LoggerFactory.getLogger(javaClass)
+
+    private var transaction: Transaction? = null
+
+    constructor(ops: ByteArray, programInvoke: ProgramInvoke, transaction: Transaction): this(ops, programInvoke) {
+        this.transaction = transaction
+    }
 
     //VM stack depth
     private val MAX_DEPTH = 2048
