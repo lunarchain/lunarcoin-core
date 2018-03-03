@@ -2,6 +2,7 @@ package io.lunarchain.lunarcoin.util
 
 import io.lunarchain.lunarcoin.core.AccountState
 import io.lunarchain.lunarcoin.core.Block
+import io.lunarchain.lunarcoin.core.BlockHeader
 import io.lunarchain.lunarcoin.core.Transaction
 import io.lunarchain.lunarcoin.storage.BlockInfo
 import org.joda.time.DateTime
@@ -193,6 +194,68 @@ object CodecUtil {
                 version.toInt(), height.toLong(), parentHash, minerAddress,
                 DateTime(millis.toLong()), difficulty.toLong(), nonce.toInt(), totalDifficulty,
                 stateRoot, trxTrieRoot, trxList
+            )
+        }
+
+        return null
+    }
+
+    /**
+     * 序列化区块(Block)。(使用ASN.1规范)
+     */
+    fun encodeBlockHeader(blockHeader: BlockHeader): ByteArray {
+
+        return encodeBlockHeaderToAsn1(blockHeader).encoded
+    }
+
+    fun encodeBlockHeaderToAsn1(blockHeader: BlockHeader): DERSequence {
+
+        val v = ASN1EncodableVector()
+
+        v.add(ASN1Integer(blockHeader.version.toLong()))
+        v.add(ASN1Integer(blockHeader.height))
+        v.add(DERBitString(blockHeader.parentHash))
+        v.add(DERBitString(blockHeader.coinBase))
+        v.add(ASN1Integer(blockHeader.difficulty))
+        v.add(ASN1Integer(blockHeader.nonce.toLong()))
+        v.add(ASN1Integer(blockHeader.time.millis))
+        v.add(ASN1Integer(blockHeader.totalDifficulty))
+        v.add(DERBitString(blockHeader.stateRoot))
+        v.add(DERBitString(blockHeader.trxTrieRoot))
+
+         return DERSequence(v)
+    }
+
+    /**
+     * 反序列化区块(Block)。(使用ASN.1规范)
+     */
+    fun decodeBlockHeader(bytes: ByteArray): BlockHeader? {
+        val v = ASN1InputStream(bytes).readObject()
+
+        if (v != null) {
+            val seq = ASN1Sequence.getInstance(v)
+            val version = ASN1Integer.getInstance(seq.getObjectAt(0)).value
+            val height = ASN1Integer.getInstance(seq.getObjectAt(1)).value
+            val parentHash = DERBitString.getInstance(seq.getObjectAt(2))?.bytes
+            val minerAddress = DERBitString.getInstance(seq.getObjectAt(3))?.bytes
+            val difficulty = ASN1Integer.getInstance(seq.getObjectAt(4))?.value
+            val nonce = ASN1Integer.getInstance(seq.getObjectAt(5))?.value
+            val millis = ASN1Integer.getInstance(seq.getObjectAt(6))?.value
+            val totalDifficulty = ASN1Integer.getInstance(seq.getObjectAt(7))?.value ?: BigInteger.ZERO
+            val stateRoot = DERBitString.getInstance(seq.getObjectAt(8))?.bytes
+            val trxTrieRoot = DERBitString.getInstance(seq.getObjectAt(9))?.bytes
+
+            if (version == null || height == null || parentHash == null || minerAddress == null ||
+                difficulty == null || nonce == null || millis == null || totalDifficulty == null ||
+                stateRoot == null || trxTrieRoot == null
+            ) {
+                return null
+            }
+
+            return BlockHeader(
+                version.toInt(), height.toLong(), parentHash, minerAddress,
+                DateTime(millis.toLong()), difficulty.toLong(), nonce.toInt(), totalDifficulty,
+                stateRoot, trxTrieRoot
             )
         }
 

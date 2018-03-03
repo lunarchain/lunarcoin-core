@@ -1,9 +1,6 @@
 package io.lunarchain.lunarcoin.network
 
-import io.lunarchain.lunarcoin.core.Block
-import io.lunarchain.lunarcoin.core.BlockChainManager
-import io.lunarchain.lunarcoin.core.Node
-import io.lunarchain.lunarcoin.core.Transaction
+import io.lunarchain.lunarcoin.core.*
 import io.lunarchain.lunarcoin.network.message.*
 import io.lunarchain.lunarcoin.util.NetworkUtil
 import io.netty.channel.Channel
@@ -129,6 +126,11 @@ class Peer(val node: Node, val manager: BlockChainManager, val channel: Channel)
 
     override fun toString(): String {
         return "[Peer:${channel.remoteAddress()}]"
+    }
+
+    fun sendBlockHeaders(headers: MutableList<BlockHeader>) {
+        val msg = BlockHeadersMessage(headers)
+        sendMessage(msg)
     }
 
 }
