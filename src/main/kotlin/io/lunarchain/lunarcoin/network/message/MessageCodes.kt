@@ -21,5 +21,7 @@ enum class MessageCodes(val code: Byte) {
     NEW_BLOCK(0x12),
     GET_BLOCKS(0x13),
     BLOCKS(0x14),
+    GET_BLOCK_HEADERS(0x15),
+    BLOCK_HEADERS(0x16),
 
 }
