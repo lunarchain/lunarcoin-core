@@ -4,6 +4,7 @@ import io.lunarchain.lunarcoin.miner.BlockMiner
 import io.lunarchain.lunarcoin.miner.MineResult
 import io.lunarchain.lunarcoin.network.Peer
 import io.lunarchain.lunarcoin.network.client.PeerClient
+import io.lunarchain.lunarcoin.sync.SyncManager
 import io.lunarchain.lunarcoin.util.CryptoUtil
 import io.reactivex.Flowable
 import io.reactivex.schedulers.Schedulers
@@ -57,6 +58,8 @@ class BlockChainManager(val blockChain: BlockChain) {
      */
     var currentAccount: AccountWithKey? = null
 
+    val syncManager = SyncManager(this, blockChain)
+
     /**
      * 将Transaction加入到Pending List。
      */
@@ -105,9 +108,11 @@ class BlockChainManager(val blockChain: BlockChain) {
      * 开始异步Mining。
      */
     fun startMining() {
-        mining = true
+        if (!mining) {
+            mining = true
 
-        mineBlock()
+            mineBlock()
+        }
     }
 
     /**
@@ -143,38 +148,10 @@ class BlockChainManager(val blockChain: BlockChain) {
     fun startSync(peer: Peer) {
         synching = true
 
-        requestPeerBlocks(peer)
-    }
-
-    /**
-     * 向Peer请求区块数据。
-     */
-    fun requestPeerBlocks(peer: Peer) {
-        peer.sendGetBlocks(blockChain.getBestBlock().height + 1, 10)
-    }
-
-    /**
-     * 处理Peer同步的区块。
-     */
-    fun processPeerBlocks(peer: Peer, blocks: List<Block>) {
-        /**
-         * 同步区块中。。。
-         */
-        if (synching) {
-
-            /**
-             * 收到区块的数量大于0则保存区块，否则说明同步完成，停止区块同步。
-             */
-            if (blocks.size > 0) {
-                blocks.forEach { blockChain.importBlock(it) }
-
-                // 继续请求区块数据，直至同步完毕。
-                requestPeerBlocks(peer)
-            } else {
-                stopSync()
-
-                startMining()
-            }
+        if (blockChain.getBestBlock().height == 0L) {
+            syncManager.initSyncGetBlocks(peer)
+        } else {
+            syncManager.initSyncGetHeaders(peer)
         }
     }
 

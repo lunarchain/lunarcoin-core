@@ -100,6 +100,15 @@ class Peer(val node: Node, val manager: BlockChainManager, val channel: Channel)
     }
 
     /**
+     * 请求区块头。
+     */
+    fun sendGetBlockHeaders(fromHeight: Long, numOfBlocks: Int) {
+        val msg = GetBlockHeadersMessage(fromHeight, numOfBlocks)
+
+        sendMessage(msg)
+    }
+
+    /**
      * 下载节点列表。
      */
     fun sendGetPeers() {
