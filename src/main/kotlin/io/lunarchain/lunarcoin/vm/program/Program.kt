@@ -49,14 +49,15 @@ class Program(private val ops: ByteArray, private val programInvoke: ProgramInvo
     private var stopped: Boolean = false
     private val touchedAccounts = ByteArraySet(HashSet())
 
-    private val stack: Stack = setupProgramListener(Stack())
-    private val memory: Memory = setupProgramListener(Memory())
-    private val storage: Storage = setupProgramListener(Storage(programInvoke))
-
     //TODO 默认TRACE开启，后期需写入配置文件
     private val traceListener = ProgramTraceListener(true)
     private val storageDiffListener = ProgramStorageChangeListener()
     private val programListener = CompositeProgramListener()
+
+    private val stack: Stack = setupProgramListener(Stack())
+    private val memory: Memory = setupProgramListener(Memory())
+    private val storage: Storage = setupProgramListener(Storage(programInvoke))
+
 
     private var returnDataBuffer: ByteArray? = null
 
@@ -433,6 +434,13 @@ class Program(private val ops: ByteArray, private val programInvoke: ProgramInvo
 
     fun fullTrace() {
         //TODO("NOT IMPLEMENTED")
+    }
+
+    /**
+     * used mostly for testing reasons
+     */
+    fun initMem(data: ByteArray) {
+        this.memory.write(0, data, data.size, false)
     }
 
     companion object {
