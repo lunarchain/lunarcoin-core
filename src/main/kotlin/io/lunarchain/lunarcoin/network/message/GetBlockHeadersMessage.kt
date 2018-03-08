@@ -3,7 +3,7 @@ package io.lunarchain.lunarcoin.network.message
 import org.spongycastle.asn1.*
 
 class GetBlockHeadersMessage(val fromHeight: Long, val numOfBlocks: Int) : Message {
-    override fun code(): Byte = MessageCodes.GET_BLOCKS.code
+    override fun code(): Byte = MessageCodes.GET_BLOCK_HEADERS.code
 
     override fun encode(): ByteArray {
 

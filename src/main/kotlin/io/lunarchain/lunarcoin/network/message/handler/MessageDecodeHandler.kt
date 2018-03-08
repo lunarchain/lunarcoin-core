@@ -6,6 +6,7 @@ import io.lunarchain.lunarcoin.core.BlockHeader
 import io.lunarchain.lunarcoin.core.Node
 import io.lunarchain.lunarcoin.network.Peer
 import io.lunarchain.lunarcoin.network.message.*
+import io.lunarchain.lunarcoin.sync.SyncStatus
 import io.netty.buffer.ByteBuf
 import io.netty.channel.ChannelHandlerContext
 import io.netty.handler.codec.ByteToMessageDecoder
@@ -119,7 +120,14 @@ class MessageDecodeHandler(val peer: Peer) : ByteToMessageDecoder() {
             throw MessageDecodeException("BlocksMessage decode failed.")
         }
 
-        manager.processPeerBlocks(peer, msg.blocks)
+        if (manager.syncManager.syncStatus == SyncStatus.INIT_SYNC_GET_BLOCKS) {
+            manager.syncManager.processSyncBlocks(peer, msg.blocks)
+        } else {
+            val blocks = msg.blocks
+            if (blocks.isNotEmpty()) {
+                blocks.forEach { manager.blockChain.importBlock(it) }
+            }
+        }
     }
 
     /**
@@ -221,7 +229,25 @@ class MessageDecodeHandler(val peer: Peer) : ByteToMessageDecoder() {
             throw MessageDecodeException("BlockHeadersMessage decode failed.")
         }
 
-        // TODO
+        if (manager.syncManager.syncStatus == SyncStatus.INIT_SYNC_GET_HEADERS && msg.headers.isEmpty()) {
+            manager.syncManager.syncStatus = SyncStatus.INIT_SYNC_COMPLETED
+            return
+        }
+
+        if (manager.syncManager.syncStatus == SyncStatus.INIT_SYNC_GET_HEADERS) {
+            val first = msg.headers[0]
+
+            if (manager.blockChain.repository.getBlock(first.parentHash) != null) { // The parent of first received block header was found.
+                manager.syncManager.initSyncGetBlocks(peer)
+            } else if (first.height > 0) { // Move back 200 blocks until find common ancestor
+                val start = manager.blockChain.getBestBlock().height - 200 + 1
+                if (start > 0) {
+                    peer.sendGetBlockHeaders(start, 10)
+                } else {
+                    peer.sendGetBlockHeaders(1, 10)
+                }
+            }
+        }
     }
 
 }
