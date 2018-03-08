@@ -104,6 +104,10 @@ class ProgramResult {
         getLogInfoList().add(logInfo)
     }
 
+    fun getHReturn(): ByteArray {
+        return hReturn
+    }
+
 
 
 }

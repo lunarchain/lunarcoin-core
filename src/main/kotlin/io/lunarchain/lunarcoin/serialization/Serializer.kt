@@ -1,12 +1,11 @@
 package io.lunarchain.lunarcoin.serialization
 
-import io.lunarchain.lunarcoin.core.AccountState
-import io.lunarchain.lunarcoin.core.AccountWithKey
-import io.lunarchain.lunarcoin.core.Block
-import io.lunarchain.lunarcoin.core.Transaction
+import io.lunarchain.lunarcoin.core.*
 import io.lunarchain.lunarcoin.storage.BlockInfo
 import io.lunarchain.lunarcoin.util.CodecUtil
 import io.lunarchain.lunarcoin.util.CryptoUtil
+import java.io.*
+
 
 /**
  * 序列化/反序列化接口。
@@ -89,4 +88,27 @@ class BlockInfosSerialize : Serializer<List<BlockInfo>, ByteArray> {
         return CodecUtil.encodeBlockInfos(obj)
     }
 
+}
+
+class StorageSerialize: Serializer<AccountStorage, ByteArray> {
+
+    override fun serialize(obj: AccountStorage): ByteArray {
+        return CodecUtil.encodeAccountStorage(obj)
+    }
+
+    override fun deserialize(s: ByteArray): AccountStorage? {
+        return CodecUtil.decodeAccountStorage(s)
+    }
+
+
+}
+
+class CodeStorageSerialize: Serializer<CodeStorage, ByteArray> {
+    override fun deserialize(s: ByteArray): CodeStorage? {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
+    override fun serialize(obj: CodeStorage): ByteArray {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
 }

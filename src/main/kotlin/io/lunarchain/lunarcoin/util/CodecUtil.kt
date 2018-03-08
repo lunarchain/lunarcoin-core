@@ -1,10 +1,8 @@
 package io.lunarchain.lunarcoin.util
 
-import io.lunarchain.lunarcoin.core.AccountState
-import io.lunarchain.lunarcoin.core.Block
-import io.lunarchain.lunarcoin.core.BlockHeader
-import io.lunarchain.lunarcoin.core.Transaction
+import io.lunarchain.lunarcoin.core.*
 import io.lunarchain.lunarcoin.storage.BlockInfo
+import lunar.vm.DataWord
 import org.joda.time.DateTime
 import org.spongycastle.asn1.*
 import java.math.BigInteger
@@ -14,6 +12,93 @@ import java.security.spec.X509EncodedKeySpec
 
 
 object CodecUtil {
+
+
+    private fun encodeMapEntry(entry: Map.Entry<DataWord, DataWord?>): DERSequence {
+
+        val v = ASN1EncodableVector()
+        //encode key
+        v.add(DERBitString(entry.key.getData()))
+        //encode value
+        v.add(DERBitString(entry.value?.getData()))
+
+        return DERSequence(v)
+
+    }
+
+    private fun decodeMapEntry(bytes: ByteArray): Pair<ByteArray, ByteArray?>? {
+        val v = ASN1InputStream(bytes).readObject()
+
+        if (v != null) {
+            val seq = ASN1Sequence.getInstance(v)
+            return decodeMapEntryFromSeq(seq)
+        }
+
+        return null
+    }
+
+    private fun decodeMapEntryFromSeq(seq: ASN1Sequence): Pair<ByteArray, ByteArray?>? {
+        val key = DERBitString.getInstance(seq.getObjectAt(0))?.bytes
+        val value = DERBitString.getInstance(seq.getObjectAt(1))?.bytes
+        if(key == null || value == null) return null
+        return Pair(key, value)
+    }
+
+    /**
+     * 序列化账户存储(Account Storage)。(使用ASN.1规范)
+     */
+    fun encodeAccountStorage(accountStorage: AccountStorage): ByteArray {
+        val v = ASN1EncodableVector()
+
+        //encoding address first
+
+        v.add(DERBitString(accountStorage.address))
+
+        //encoding hashmap second
+
+        val t = ASN1EncodableVector()
+
+        accountStorage.storage.forEach {t.add(encodeMapEntry(it)) }
+
+        v.add(DERSequence(t))
+
+
+        return DERSequence(v).encoded
+    }
+
+    /**
+     * 反序列化账户存储(Account Storage)。(使用ASN.1规范)
+     */
+
+    fun decodeAccountStorage(bytes: ByteArray): AccountStorage? {
+        val v = ASN1InputStream(bytes).readObject()
+
+        if(v != null) {
+
+            val seq = ASN1Sequence.getInstance(v)
+
+            val address = DERBitString.getInstance(seq.getObjectAt(0)).bytes
+
+            val storage =  ASN1Sequence.getInstance(seq.getObjectAt(1))
+
+            val storageEntries = HashMap<DataWord, DataWord?>()
+
+            for(entry in storage.objects) {
+                val entryObj = DERSequence.getInstance(entry) ?: return null
+                val entryPair = decodeMapEntry(entryObj.encoded) ?: return null
+                val dataVal = if(entryPair.second == null) null else DataWord(entryPair.second)
+                storageEntries.put(DataWord(entryPair.first), dataVal)
+            }
+            return AccountStorage(address, storageEntries)
+
+        }
+        return null
+    }
+
+
+
+
+
     /**
      * 序列化账户状态(Account State)。(使用ASN.1规范)
      */

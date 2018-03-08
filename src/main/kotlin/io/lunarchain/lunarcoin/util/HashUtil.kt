@@ -4,6 +4,7 @@ import io.lunarchain.lunarcoin.util.ByteUtil.EMPTY_BYTE_ARRAY
 import io.lunarchain.lunarcoin.util.CryptoUtil.Companion.sha3
 import org.spongycastle.crypto.digests.RIPEMD160Digest
 import java.security.MessageDigest
+import java.security.NoSuchAlgorithmException
 import java.util.Arrays.copyOfRange
 
 object HashUtil {
@@ -20,6 +21,8 @@ object HashUtil {
     fun sha256(input: ByteArray): ByteArray {
         return sha256digest.digest(input)
     }
+
+
 
     /**
      * @param data

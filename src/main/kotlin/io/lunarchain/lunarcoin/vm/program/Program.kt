@@ -16,6 +16,7 @@ import lunar.vm.trace.ProgramTrace
 import lunar.vm.trace.ProgramTraceListener
 import org.slf4j.LoggerFactory
 import org.spongycastle.util.encoders.Hex
+import java.io.ByteArrayOutputStream
 import java.lang.StrictMath.min
 import java.lang.String.format
 import java.lang.reflect.Array.getLength
@@ -443,7 +444,130 @@ class Program(private val ops: ByteArray, private val programInvoke: ProgramInvo
         this.memory.write(0, data, data.size, false)
     }
 
+    fun getMemory(): ByteArray {
+        return memory.read(0, memory.size())
+    }
+
     companion object {
+
+
+        class ByteCodeIterator(var code: ByteArray) {
+            var pc: Int = 0
+
+            val curOpcode: OpCode?
+                get() = if (pc < code.size) OpCode.code(code[pc]) else null
+
+            val isPush: Boolean
+                get() = if (curOpcode != null) curOpcode!!.name.startsWith("PUSH") else false
+
+            val curOpcodeArg: ByteArray
+                get() {
+                    if (isPush) {
+                        val nPush = curOpcode!!.`val`() - OpCode.PUSH1.`val`() + 1
+                        return Arrays.copyOfRange(code, pc + 1, pc + nPush + 1)
+                    } else {
+                        return ByteArray(0)
+                    }
+                }
+
+            operator fun next(): Boolean {
+                pc += 1 + curOpcodeArg.size
+                return pc < code.size
+            }
+        }
+
+
+         fun buildReachableBytecodesMask(code: ByteArray): BitSet {
+            val gotos = TreeSet<Int>()
+            val it = ByteCodeIterator(code)
+            val ret = BitSet(code.size)
+            var lastPush = 0
+            var lastPushPC = 0
+            do {
+                ret.set(it.pc) // reachable bytecode
+                if (it.isPush) {
+                    lastPush = BigInteger(1, it.curOpcodeArg).toInt()
+                    lastPushPC = it.pc
+                }
+                if (it.curOpcode === OpCode.JUMP || it.curOpcode === OpCode.JUMPI) {
+                    if (it.pc != lastPushPC + 1) {
+                        // some PC arithmetic we totally can't deal with
+                        // assuming all bytecodes are reachable as a fallback
+                        ret.set(0, code.size)
+                        return ret
+                    }
+                    val jumpPC = lastPush
+                    if (!ret.get(jumpPC)) {
+                        // code was not explored yet
+                        gotos.add(jumpPC)
+                    }
+                }
+                if (it.curOpcode === OpCode.JUMP || it.curOpcode === OpCode.RETURN ||
+                    it.curOpcode === OpCode.STOP
+                ) {
+                    if (gotos.isEmpty()) break
+                    it.pc = (gotos.pollFirst()!!)
+                }
+            } while (it.next())
+            return ret
+        }
+
+        fun stringifyMultiline(code: ByteArray): String {
+            var index = 0
+            val sb = StringBuilder()
+            val mask = buildReachableBytecodesMask(code)
+            var binData = ByteArrayOutputStream()
+            var binDataStartPC = -1
+
+            while (index < code.size) {
+                val opCode = code[index]
+                val op = OpCode.code(opCode)
+
+                if (!mask.get(index)) {
+                    if (binDataStartPC == -1) {
+                        binDataStartPC = index
+                    }
+                    binData.write(code[index].toInt())
+                    index++
+                    if (index < code.size) continue
+                }
+
+                if (binDataStartPC != -1) {
+                    sb.append(formatBinData(binData.toByteArray(), binDataStartPC))
+                    binDataStartPC = -1
+                    binData = ByteArrayOutputStream()
+                    if (index == code.size) continue
+                }
+
+                sb.append(Utils.align("" + Integer.toHexString(index) + ":", ' ', 8, false))
+
+                if (op == null) {
+                    sb.append("<UNKNOWN>: ").append(0xFF and opCode.toInt()).append("\n")
+                    index++
+                    continue
+                }
+
+                if (op.name.startsWith("PUSH")) {
+                    sb.append(' ').append(op.name).append(' ')
+
+                    val nPush = op.`val`() - OpCode.PUSH1.`val`() + 1
+                    val data = Arrays.copyOfRange(code, index + 1, index + nPush + 1)
+                    val bi = BigInteger(1, data)
+                    sb.append("0x").append(bi.toString(16))
+                    if (bi.bitLength() <= 32) {
+                        sb.append(" (").append(BigInteger(1, data).toString()).append(") ")
+                    }
+
+                    index += nPush + 1
+                } else {
+                    sb.append(' ').append(op.name)
+                    index++
+                }
+                sb.append('\n')
+            }
+
+            return sb.toString()
+        }
 
         fun formatBinData(binData: ByteArray, startPC: Int): String {
             val ret = StringBuilder()
@@ -489,6 +613,7 @@ class Program(private val ops: ByteArray, private val programInvoke: ProgramInvo
             return StackTooSmallException("Expected stack size %d but actual %d;", expectedSize, actualSize)
         }
     }
+
 
     open class BytecodeExecutionException(message: String) : RuntimeException(message)
 

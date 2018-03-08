@@ -50,4 +50,13 @@ class AccountState(val nonce: BigInteger, val balance: BigInteger) {
         this.codeHash = codeHash
     }
 
+    fun getCodeHash(): ByteArray? {
+        return this.codeHash
+    }
+
+    fun withCodeHash(codeHash: ByteArray): AccountState {
+        val stateRootInput = if(this.stateRoot == null) EMPTY_TRIE_HASH else this.stateRoot
+        return AccountState(nonce, balance, stateRootInput!!, codeHash)
+    }
+
 }

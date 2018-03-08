@@ -38,8 +38,9 @@ interface Repository {
     fun getAccountStateRoot(): ByteArray?
     fun updateBlockInfo(height: Long, blockInfo: BlockInfo)
     fun isExist(address: ByteArray): Boolean
-    fun getStorageValue(addr: ByteArray, key: DataWord): DataWord
+    fun getStorageValue(addr: ByteArray, key: DataWord): DataWord?
     fun getAccountState(address: ByteArray): AccountState?
+    fun getOrCreateAccountState(addr: ByteArray): AccountState
     /**
      * Retrieve the code associated with an account
      *
@@ -47,6 +48,13 @@ interface Repository {
      * @return code in byte-array format
      */
     fun getCode(addr: ByteArray): ByteArray?
+
+
+    fun saveCode(addr: ByteArray, code: ByteArray)
+
+
+    fun getCodeHash(addr: ByteArray): ByteArray?
+
 
     /**
      * Gets the block hash by its index.

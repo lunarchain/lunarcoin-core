@@ -277,8 +277,8 @@ class DataWord(): Comparable<DataWord> {
         return this
     }
 
-    fun getNoLeadZeroesData(): ByteArray? {
-        return ByteUtil.stripLeadingZeroes(data)
+    fun getNoLeadZeroesData(): ByteArray {
+        return ByteUtil.stripLeadingZeroes(data)!!
     }
 
     override fun toString(): String {
@@ -317,5 +317,9 @@ class DataWord(): Comparable<DataWord> {
 
         return java.util.Arrays.equals(data, dataWord!!.data)
 
+    }
+
+    override fun hashCode(): Int {
+        return java.util.Arrays.hashCode(data)
     }
 }

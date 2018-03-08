@@ -14,4 +14,16 @@ class LogInfo() {
         this.data = data ?: byteArrayOf()
     }
 
+    fun getAddress(): ByteArray {
+        return address
+    }
+
+    fun getTopics(): MutableList<DataWord> {
+        return this.topics!!
+    }
+
+    fun getData(): ByteArray {
+        return data
+    }
+
 }
