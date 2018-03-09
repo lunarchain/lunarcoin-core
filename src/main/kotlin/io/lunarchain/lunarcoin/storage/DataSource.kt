@@ -1,5 +1,12 @@
 package io.lunarchain.lunarcoin.storage
 
+const val BUCKET_NAME_ACCOUNT_STATE = "account_state"
+const val BUCKET_NAME_ACCOUNT = "account"
+const val BUCKET_NAME_BLOCK = "block"
+const val BUCKET_NAME_BLOCK_INDEX = "block_index"
+const val BUCKET_NAME_BLOCK_TRANSACTION = "block_transaction"
+const val BUCKET_NAME_BEST_BLOCK = "best_block"
+
 /**
  * 数据源类，具体实现可以是Memory，LevelDb等。
  */

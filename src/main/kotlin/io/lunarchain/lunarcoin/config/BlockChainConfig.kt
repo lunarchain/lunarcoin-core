@@ -25,7 +25,7 @@ class BlockChainConfig {
     private val MAINNET_NETWORK_ID = 1
 
     enum class DatabaseType {
-        MEMORY, LEVELDB
+        MEMORY, LEVELDB, SQLITE
     }
 
     private var minerCoinBase: ByteArray = ByteArray(0)
@@ -94,7 +94,7 @@ class BlockChainConfig {
      */
     fun getDatabaseType(): String {
         if (getConfig().hasPathOrNull("database.type")) {
-            return getConfig().getString("database.type")
+            return getConfig().getString("database.type").toUpperCase()
         } else {
             return DatabaseType.MEMORY.name
         }
