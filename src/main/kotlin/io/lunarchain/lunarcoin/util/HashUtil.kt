@@ -3,6 +3,7 @@ package io.lunarchain.lunarcoin.util
 import io.lunarchain.lunarcoin.util.ByteUtil.EMPTY_BYTE_ARRAY
 import io.lunarchain.lunarcoin.util.CryptoUtil.Companion.sha3
 import org.spongycastle.crypto.digests.RIPEMD160Digest
+import java.math.BigInteger
 import java.security.MessageDigest
 import java.security.NoSuchAlgorithmException
 import java.util.Arrays.copyOfRange
@@ -51,5 +52,22 @@ object HashUtil {
     fun sha3omit12(input: ByteArray): ByteArray {
         val hash = sha3(input)
         return copyOfRange(hash, 12, hash.size)
+    }
+
+    /**
+     * The way to calculate new address inside ethereum
+     *
+     * @param addr
+     * - creating addres
+     * @param nonce
+     * - nonce of creating address
+     * @return new address
+     */
+    fun calcNewAddr(addr: ByteArray, nonce: ByteArray): ByteArray {
+
+        val encSender = RLP.encodeElement(addr)
+        val encNonce = RLP.encodeBigInteger(BigInteger(1, nonce))
+
+        return sha3omit12(RLP.encodeList(encSender, encNonce))
     }
 }

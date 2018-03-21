@@ -55,6 +55,8 @@ interface Repository {
 
     fun getCodeHash(addr: ByteArray): ByteArray?
 
+    fun getNonce(addr: ByteArray): BigInteger
+
 
     /**
      * Gets the block hash by its index.

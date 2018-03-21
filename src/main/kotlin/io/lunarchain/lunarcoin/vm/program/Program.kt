@@ -1,8 +1,10 @@
 package lunar.vm.program
 
 import io.lunarchain.lunarcoin.core.Transaction
+import io.lunarchain.lunarcoin.util.BIUtil.isNotCovers
 import io.lunarchain.lunarcoin.util.ByteArraySet
 import io.lunarchain.lunarcoin.util.ByteUtil.EMPTY_BYTE_ARRAY
+import io.lunarchain.lunarcoin.util.HashUtil
 import io.lunarchain.lunarcoin.util.Utils
 import io.lunarchain.lunarcoin.vm.MessageCall
 import io.lunarchain.lunarcoin.vm.PrecompiledContracts
@@ -35,6 +37,7 @@ class Program(private val ops: ByteArray, private val programInvoke: ProgramInvo
 
     //VM stack depth
     private val MAX_DEPTH = 2048
+
 
     //VM stack size, 这里做了更改
     private val MAX_STACKSIZE = 2048
@@ -415,8 +418,170 @@ class Program(private val ops: ByteArray, private val programInvoke: ProgramInvo
         return ret
     }
 
+    fun stackPushZero() {
+        stackPush(DataWord(0))
+    }
+
     fun createContract(value: DataWord, memStart: DataWord, memSize: DataWord) {
-        //TODO("NOT IMPLEMENTED")
+        returnDataBuffer = null // reset return buffer right before the call
+
+        if (getCallDeep() == MAX_DEPTH) {
+            stackPushZero()
+            return
+        }
+
+        val senderAddress = this.getOwnerAddress().getLast20Bytes()
+        val endowment = value.value()
+        if (isNotCovers(getStorage().getBalance(senderAddress)!!, endowment)) {
+            stackPushZero()
+            return
+        }
+
+        val programCode = memoryChunk(memStart.intValue(), memSize.intValue())
+
+        if (logger.isInfoEnabled)
+            logger.info("creating a new contract inside contract run: [{}]", Hex.toHexString(senderAddress))
+
+        //val blockchainConfig = config.getBlockchainConfig().getConfigForBlock(getNumber().longValue())
+        //  actual gas subtract
+        //val gasLimit = blockchainConfig.getCreateGas(getGas())
+        //TODO right now hard code here
+        val gasLimit = DataWord(10000)
+        spendGas(gasLimit.longValue(), "internal call")
+
+        // [2] CREATE THE CONTRACT ADDRESS
+        val nonce = getStorage().getNonce(senderAddress).toByteArray()
+        val newAddress = HashUtil.calcNewAddr(getOwnerAddress().getLast20Bytes(), nonce)
+
+        val existingAddr = getStorage().getAccountState(newAddress)
+        val contractAlreadyExists = existingAddr != null && existingAddr.isContractExist()
+
+        if (byTestingSuite()) {
+            // This keeps track of the contracts created for a test
+            getResult().addCallCreate(
+                programCode, EMPTY_BYTE_ARRAY,
+                gasLimit.getNoLeadZeroesData(),
+                value.getNoLeadZeroesData()
+            )
+        }
+
+        // [3] UPDATE THE NONCE
+        // (THIS STAGE IS NOT REVERTED BY ANY EXCEPTION)
+        if (!byTestingSuite()) {
+            getStorage().increaseNonce(senderAddress)
+        }
+
+        val track = getStorage().startTracking()
+
+        //In case of hashing collisions, check for any balance before createAccount()
+        val oldBalance = track.getBalance(newAddress)
+        track.createAccount(newAddress)
+        if (blockchainConfig.eip161()) {
+            track.increaseNonce(newAddress)
+        }
+        track.addBalance(newAddress, oldBalance)
+
+        // [4] TRANSFER THE BALANCE
+        var newBalance = ZERO
+        if (!byTestingSuite()) {
+            track.addBalance(senderAddress, endowment.negate())
+            newBalance = track.addBalance(newAddress, endowment)
+        }
+
+
+        // [5] COOK THE INVOKE AND EXECUTE
+        val internalTx = addInternalTx(nonce, getGasLimit(), senderAddress, null, endowment, programCode, "create")
+        val programInvoke = programInvokeFactory.createProgramInvoke(
+            this, DataWord(newAddress), getOwnerAddress(), value, gasLimit,
+            newBalance, null, track, this.invoke.getBlockStore(), false, byTestingSuite()
+        )
+
+        var result = ProgramResult.createEmpty()
+
+        if (contractAlreadyExists) {
+            result.setException(
+                BytecodeExecutionException(
+                    "Trying to create a contract with existing contract address: 0x" + Hex.toHexString(
+                        newAddress
+                    )
+                )
+            )
+        } else if (isNotEmpty(programCode)) {
+            val vm = VM(config)
+            val program = Program(programCode, programInvoke, internalTx, config).withCommonConfig(commonConfig)
+            vm.play(program)
+            result = program.getResult()
+
+            getResult().merge(result)
+        }
+
+        // 4. CREATE THE CONTRACT OUT OF RETURN
+        val code = result.getHReturn()
+
+        val storageCost = getLength(code) * getBlockchainConfig().getGasCost().getCREATE_DATA()
+        val afterSpend = programInvoke.getGas().longValue() - storageCost - result.getGasUsed()
+        if (afterSpend < 0) {
+            if (!blockchainConfig.getConstants().createEmptyContractOnOOG()) {
+                result.setException(
+                    Program.Exception.notEnoughSpendingGas(
+                        "No gas to return just created contract",
+                        storageCost, this
+                    )
+                )
+            } else {
+                track.saveCode(newAddress, EMPTY_BYTE_ARRAY)
+            }
+        } else if (getLength(code) > blockchainConfig.getConstants().getMAX_CONTRACT_SZIE()) {
+            result.setException(
+                Program.Exception.notEnoughSpendingGas(
+                    "Contract size too large: " + getLength(result.getHReturn()),
+                    storageCost, this
+                )
+            )
+        } else if (!result.isRevert()) {
+            result.spendGas(storageCost)
+            track.saveCode(newAddress, code)
+        }
+
+        if (result.getException() != null || result.isRevert()) {
+            logger.debug(
+                "contract run halted by Exception: contract: [{}], exception: [{}]",
+                Hex.toHexString(newAddress),
+                result.getException()
+            )
+
+            internalTx.reject()
+            result.rejectInternalTransactions()
+
+            track.rollback()
+            stackPushZero()
+
+            if (result.getException() != null) {
+                return
+            } else {
+                returnDataBuffer = result.getHReturn()
+            }
+        } else {
+            if (!byTestingSuite())
+                track.commit()
+
+            // IN SUCCESS PUSH THE ADDRESS INTO THE STACK
+            stackPush(DataWord(newAddress))
+        }
+
+        // 5. REFUND THE REMAIN GAS
+        val refundGas = gasLimit.longValue() - result.getGasUsed()
+        if (refundGas > 0) {
+            refundGas(refundGas, "remain gas from the internal call")
+            if (logger.isInfoEnabled) {
+                logger.info(
+                    "The remaining gas is refunded, account: [{}], gas: [{}] ",
+                    Hex.toHexString(getOwnerAddress().getLast20Bytes()),
+                    refundGas
+                )
+            }
+        }
+
 
     }
 

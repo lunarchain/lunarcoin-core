@@ -3,6 +3,7 @@ package lunar.vm.program
 import io.lunarchain.lunarcoin.util.ByteArraySet
 import io.lunarchain.lunarcoin.util.ByteArrayWrapper
 import io.lunarchain.lunarcoin.util.ByteUtil.EMPTY_BYTE_ARRAY
+import io.lunarchain.lunarcoin.vm.CallCreate
 import io.lunarchain.lunarcoin.vm.LogInfo
 import lunar.vm.DataWord
 import java.util.*
@@ -26,6 +27,8 @@ class ProgramResult {
     private var hReturn = EMPTY_BYTE_ARRAY
 
     private var logInfoList: MutableList<LogInfo>? = null
+
+    private var callCreateList: MutableList<CallCreate>? = null
 
     fun spendGas(gas: Long) {
         gasUsed += gas
@@ -106,6 +109,17 @@ class ProgramResult {
 
     fun getHReturn(): ByteArray {
         return hReturn
+    }
+
+    fun getCallCreateList(): MutableList<CallCreate> {
+        if (callCreateList == null) {
+            callCreateList = ArrayList()
+        }
+        return callCreateList!!
+    }
+
+    fun addCallCreate(data: ByteArray, destination: ByteArray, gasLimit: ByteArray, value: ByteArray) {
+        getCallCreateList().add(CallCreate(data, destination, gasLimit, value))
     }
 
 

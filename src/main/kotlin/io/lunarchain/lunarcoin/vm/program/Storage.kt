@@ -45,5 +45,14 @@ class Storage(private val programInvoke: ProgramInvoke): ProgramListenerAware {
         repository?.addStorageRow(addr, key, value)
     }
 
+    fun getNonce(addr: ByteArray): BigInteger {
+        return repository!!.getNonce(addr)
+    }
+
+    fun increaseNonce(addr: ByteArray): BigInteger {
+        repository!!.increaseNonce(addr)
+        return repository!!.getNonce(addr)
+    }
+
 
 }

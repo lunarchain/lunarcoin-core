@@ -2,6 +2,8 @@ package io.lunarchain.lunarcoin.util
 
 import io.lunarchain.lunarcoin.util.ByteUtil.isNullOrZeroArray
 import io.lunarchain.lunarcoin.util.ByteUtil.isSingleZero
+import org.spongycastle.util.BigIntegers.asUnsignedByteArray
+import java.math.BigInteger
 import java.util.*
 
 object RLP {
@@ -157,5 +159,24 @@ object RLP {
 
             return data
         }
+    }
+
+    fun encodeByte(singleByte: Byte): ByteArray {
+        return if (singleByte.toInt() and 0xFF == 0) {
+            byteArrayOf(OFFSET_SHORT_ITEM.toByte())
+        } else if ((singleByte.toInt() and 0xFF).toByte() <= 0x7F) {
+            byteArrayOf(singleByte)
+        } else {
+            byteArrayOf((OFFSET_SHORT_ITEM + 1).toByte(), singleByte)
+        }
+    }
+
+    fun encodeBigInteger(srcBigInteger: BigInteger): ByteArray {
+        if (srcBigInteger.compareTo(BigInteger.ZERO) < 0) throw RuntimeException("negative numbers are not allowed")
+
+        return if (srcBigInteger == BigInteger.ZERO)
+            encodeByte(0.toByte())
+        else
+            encodeElement(asUnsignedByteArray(srcBigInteger))
     }
 }

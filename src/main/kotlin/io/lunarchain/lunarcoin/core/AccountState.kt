@@ -1,7 +1,9 @@
 package io.lunarchain.lunarcoin.core
 
 import io.lunarchain.lunarcoin.util.CodecUtil
+import io.lunarchain.lunarcoin.util.FastByteComparisons
 import io.lunarchain.lunarcoin.util.FastByteComparisons.equal
+import io.lunarchain.lunarcoin.util.HashUtil.EMPTY_DATA_HASH
 import io.lunarchain.lunarcoin.util.HashUtil.EMPTY_TRIE_HASH
 import java.math.BigInteger
 
@@ -57,6 +59,13 @@ class AccountState(val nonce: BigInteger, val balance: BigInteger) {
     fun withCodeHash(codeHash: ByteArray): AccountState {
         val stateRootInput = if(this.stateRoot == null) EMPTY_TRIE_HASH else this.stateRoot
         return AccountState(nonce, balance, stateRootInput!!, codeHash)
+    }
+
+    fun isContractExist(): Boolean {
+        return !FastByteComparisons.equal(
+            codeHash!!,
+            EMPTY_DATA_HASH
+        ) || 0.toBigInteger() != nonce
     }
 
 }
