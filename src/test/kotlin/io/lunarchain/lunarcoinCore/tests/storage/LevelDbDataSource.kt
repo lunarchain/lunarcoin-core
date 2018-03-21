@@ -96,4 +96,13 @@ class LevelDbDataSource(override val name: String, val databaseDir: String) :
         init()
     }
 
+    override fun start() {
+    }
+
+    override fun commit() {
+    }
+
+    override fun rollback() {
+    }
+
 }

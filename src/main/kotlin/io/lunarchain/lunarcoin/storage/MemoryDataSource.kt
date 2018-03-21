@@ -54,4 +54,12 @@ class MemoryDataSource(override val name: String) : DataSource<ByteArray, ByteAr
 
     }
 
+    override fun start() {
+    }
+
+    override fun commit() {
+    }
+
+    override fun rollback() {
+    }
 }
