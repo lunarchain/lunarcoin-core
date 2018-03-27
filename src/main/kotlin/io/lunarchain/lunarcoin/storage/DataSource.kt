@@ -69,4 +69,18 @@ interface DataSource<K, V> {
      */
     fun reset()
 
+    /**
+     * 开启事务
+     */
+    fun start()
+
+    /**
+     * 提交事务
+     */
+    fun commit()
+
+    /**
+     * 回滚事务
+     */
+    fun rollback()
 }

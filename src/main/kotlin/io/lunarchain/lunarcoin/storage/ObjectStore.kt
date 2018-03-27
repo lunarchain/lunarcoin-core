@@ -57,4 +57,17 @@ class ObjectStore<V>(val db: DataSource<ByteArray, ByteArray>, val serializer: S
         }
     }
 
+    override fun start() {
+        db.start()
+    }
+
+    override fun commit() {
+        db.commit()
+    }
+
+    override fun rollback() {
+        db.rollback()
+    }
+
+
 }
