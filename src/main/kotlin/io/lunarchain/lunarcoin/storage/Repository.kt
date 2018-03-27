@@ -23,6 +23,8 @@ interface Repository {
      */
     fun addBalance(address: ByteArray, amount: BigInteger)
 
+    fun addBalanceWithResult(address: ByteArray, amount: BigInteger): BigInteger
+
     fun saveAccount(account: AccountWithKey, password: String = ""): Int
     fun getAccount(index: Int, password: String = ""): AccountWithKey?
     fun accountNumber(): Int
@@ -59,9 +61,17 @@ interface Repository {
 
     fun getNonce(addr: ByteArray): BigInteger
 
+    fun setNonce(addr: ByteArray, nonce: BigInteger)
+
     fun getContractDetails(addr: ByteArray): ContractDetails {
         return ContractDetailsImpl(addr, this)
     }
+
+    fun startTracking()
+
+    fun commit()
+
+    fun rollback()
 
 
     /**

@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory
 import org.spongycastle.util.encoders.Hex
 import java.io.*
 import java.math.BigInteger
+import java.nio.ByteBuffer
 import java.security.PrivateKey
 import java.security.PublicKey
 import java.util.*
@@ -23,6 +24,8 @@ class BlockChainConfig {
     private val PEER_VERSION = 0x01
 
     private val MAINNET_NETWORK_ID = 1
+
+    private val blockGasLimit = 100000000L
 
     enum class DatabaseType {
         MEMORY, LEVELDB, SQLITE
@@ -204,7 +207,7 @@ class BlockChainConfig {
             1, 0, ByteArray(0),
             Hex.decode("1234567890123456789012345678901234567890"),
             DateTime(2017, 2, 1, 0, 0, DateTimeZone.UTC), 0, 0,
-            BigInteger.ZERO, CryptoUtil.merkleRoot(emptyList()), CryptoUtil.merkleRoot(emptyList()), emptyList()
+            BigInteger.ZERO, CryptoUtil.merkleRoot(emptyList()), CryptoUtil.merkleRoot(emptyList()), emptyList(), ByteBuffer.allocate(java.lang.Long.BYTES).putLong(blockGasLimit).array()
         )
         return genesisBlock
     }

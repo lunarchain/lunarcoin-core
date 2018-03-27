@@ -25,6 +25,10 @@ class AccountState(val nonce: BigInteger, val balance: BigInteger) {
         return AccountState(nonce, balance + amount)
     }
 
+    fun setNonce(nonce: BigInteger): AccountState {
+        return AccountState(nonce, balance)
+    }
+
     //code that represents contract state
 
     /* A 256-bit hash of the root node of a trie structure

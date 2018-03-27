@@ -260,6 +260,18 @@ class PatriciaTrie {
         db.close()
     }
 
+    fun start() {
+        db.start()
+    }
+
+    fun commit() {
+        db.commit()
+    }
+
+    fun rollback() {
+        db.rollback()
+    }
+
     fun changeRoot(hash: ByteArray) {
         if (Arrays.equals(hash, BLANK_ROOT)) {
             this.rootNode = BLANK_NODE

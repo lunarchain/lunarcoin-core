@@ -520,7 +520,7 @@ class Program(private val ops: ByteArray, private val programInvoke: ProgramInvo
 
         //In case of hashing collisions, check for any balance before createAccount()
         val oldBalance = track.getBalance(newAddress)
-        track.createAccount(newAddress)
+        track.getOrCreateAccountState(newAddress)
         //eip161 为true
         track.increaseNonce(newAddress)
         track.addBalance(newAddress, oldBalance)
@@ -529,7 +529,7 @@ class Program(private val ops: ByteArray, private val programInvoke: ProgramInvo
         var newBalance = ZERO
         if (!byTestingSuite()) {
             track.addBalance(senderAddress, endowment.negate())
-            newBalance = track.addBalance(newAddress, endowment)
+            newBalance = track.addBalanceWithResult(newAddress, endowment)
         }
 
 
@@ -755,7 +755,7 @@ class Program(private val ops: ByteArray, private val programInvoke: ProgramInvo
             )
         } else {
             track.addBalance(senderAddress, endowment.negate())
-            contextBalance = track.addBalance(contextAddress, endowment)
+            contextBalance = track.addBalanceWithResult(contextAddress, endowment)
         }
 
         // CREATE CALL INTERNAL TRANSACTION

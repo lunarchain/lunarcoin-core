@@ -66,5 +66,10 @@ class Storage(val programInvoke: ProgramInvoke): ProgramListenerAware {
         return repository!!.getCode(addr)
     }
 
+    @Synchronized fun  startTracking(): Repository {
+        repository!!.startTracking()
+        return this.repository!!
+    }
+
 
 }

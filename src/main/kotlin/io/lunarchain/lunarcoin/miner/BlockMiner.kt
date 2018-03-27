@@ -76,7 +76,8 @@ object BlockMiner {
             val newBlock = Block(
                 block.version, block.height, block.parentHash, block.coinBase,
                 block.time, difficulty, nonce, totalDifficulty, block.stateRoot, block.trxTrieRoot,
-                block.transactions
+                block.transactions,
+                block.gasLimit
             )
             logger.info("Mined block $newBlock in $interval seconds.")
 

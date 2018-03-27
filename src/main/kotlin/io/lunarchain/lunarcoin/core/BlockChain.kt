@@ -11,6 +11,7 @@ import io.lunarchain.lunarcoin.util.CodecUtil
 import org.joda.time.DateTime
 import org.slf4j.LoggerFactory
 import org.spongycastle.util.encoders.Hex
+import java.math.BigInteger
 import java.util.*
 
 /**
@@ -21,6 +22,11 @@ class BlockChain(val config: BlockChainConfig, val repository: Repository) {
     private val logger = LoggerFactory.getLogger(javaClass)
 
     private var bestBlock: Block = config.getGenesisBlock()
+
+    //TODO remove hard-code
+    private val gasPrice = 100.toBigInteger()
+
+    private val gasLimit = 1000.toBigInteger()
 
     /**
      * 交易处理实例。
@@ -65,7 +71,8 @@ class BlockChain(val config: BlockChainConfig, val repository: Repository) {
             config.getPeerVersion(), parent.height + 1, parent.hash,
             config.getMinerCoinbase(), DateTime(), 0, 0, parent.totalDifficulty,
             ByteArray(0), calculateTrxTrieRoot(transactionsToInclude),
-            transactionsToInclude
+            transactionsToInclude,
+            parent.gasLimit
         )
         return block
     }
@@ -86,7 +93,8 @@ class BlockChain(val config: BlockChainConfig, val repository: Repository) {
     private fun generateCoinBaseTransaction(): Transaction {
         return Transaction(
             COINBASE_SENDER_ADDRESS,
-            config.getMinerCoinbase(), BLOCK_REWARD, DateTime(), config.getNodePubKey()!!
+            config.getMinerCoinbase(), BLOCK_REWARD, DateTime(), config.getNodePubKey()!!, ByteArray(0), repository.getAccountState(COINBASE_SENDER_ADDRESS)!!.nonce.toByteArray(),
+            gasPrice.toByteArray(), gasLimit.toByteArray(), ByteArray(0)
         )
     }
 
@@ -108,7 +116,8 @@ class BlockChain(val config: BlockChainConfig, val repository: Repository) {
             block.version, block.height, block.parentHash, block.coinBase,
             block.time, block.difficulty, block.nonce, block.totalDifficulty,
             repository.getAccountStateRoot() ?: ByteArray(0), block.trxTrieRoot,
-            block.transactions
+            block.transactions,
+            block.gasLimit
         )
     }
 

@@ -74,7 +74,8 @@ class NetworkTest {
         transactionExecutor.addBalance(bob.address, BigInteger.valueOf(200))
 
         // Alice向Bob转账100
-        val trx = Transaction(alice.address, bob.address, BigInteger.valueOf(100), DateTime(), kp1.public)
+        val trx = Transaction(alice.address, bob.address, BigInteger.valueOf(100), DateTime(), kp1.public, ByteArray(0),
+            repository.getAccountState(alice.address)!!.nonce.toByteArray(), 100.toBigInteger().toByteArray(), 10000.toBigInteger().toByteArray(), ByteArray(0))
         // Alice用私钥签名
         trx.sign(kp1.private)
         return trx

@@ -22,7 +22,7 @@ val COINBASE_SENDER_ADDRESS = Hex.decode("00000000000000000000000000000000000000
  */
 open class Transaction(
     val senderAddress: ByteArray, val receiverAddress: ByteArray, val amount: BigInteger,
-    val time: DateTime, val publicKey: PublicKey, var signature: ByteArray = ByteArray(0), val nonce: ByteArray,
+    val time: DateTime, val publicKey: PublicKey, var signature: ByteArray = ByteArray(0), var nonce: ByteArray,
     val gasPrice: ByteArray, val gasLimit: ByteArray, val data: ByteArray
 ) {
 
@@ -92,5 +92,7 @@ open class Transaction(
     fun getContractAddress(): ByteArray? {
         return if (!isContractCreation()) null else HashUtil.calcNewAddr(this.getSender()!!, nonce)
     }
+
+
 
 }
