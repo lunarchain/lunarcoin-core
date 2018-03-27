@@ -710,4 +710,17 @@ enum class OpCode(private val op: Int, private val require: Int,
         return getCallFlags().contains(CallFlags.Stateless)
     }
 
+    /**
+     * Indicates that value and message sender are propagated from parent to child scope
+     */
+    fun callIsDelegate(): Boolean {
+        checkCall()
+        return getCallFlags().contains(CallFlags.Delegate)
+    }
+
+    fun callIsStatic(): Boolean {
+        checkCall()
+        return getCallFlags().contains(CallFlags.Static)
+    }
+
 }

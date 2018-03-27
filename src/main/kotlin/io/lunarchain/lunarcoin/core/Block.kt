@@ -13,7 +13,7 @@ class Block(
     val version: Int, val height: Long, val parentHash: ByteArray,
     val coinBase: ByteArray, val time: DateTime, val difficulty: Long,
     val nonce: Int, val totalDifficulty: BigInteger, val stateRoot: ByteArray, val trxTrieRoot: ByteArray,
-    val transactions: List<Transaction>
+    val transactions: List<Transaction>, val gasLimit: ByteArray
 ) {
 
     val header = BlockHeader(

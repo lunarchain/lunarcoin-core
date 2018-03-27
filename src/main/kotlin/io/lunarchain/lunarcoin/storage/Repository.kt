@@ -41,6 +41,8 @@ interface Repository {
     fun getStorageValue(addr: ByteArray, key: DataWord): DataWord?
     fun getAccountState(address: ByteArray): AccountState?
     fun getOrCreateAccountState(addr: ByteArray): AccountState
+    fun delete(address: ByteArray)
+
     /**
      * Retrieve the code associated with an account
      *
@@ -56,6 +58,10 @@ interface Repository {
     fun getCodeHash(addr: ByteArray): ByteArray?
 
     fun getNonce(addr: ByteArray): BigInteger
+
+    fun getContractDetails(addr: ByteArray): ContractDetails {
+        return ContractDetailsImpl(addr, this)
+    }
 
 
     /**

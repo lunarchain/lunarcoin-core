@@ -3,9 +3,14 @@ package lunar.vm.program
 import io.lunarchain.lunarcoin.util.ByteArraySet
 import io.lunarchain.lunarcoin.util.ByteArrayWrapper
 import io.lunarchain.lunarcoin.util.ByteUtil.EMPTY_BYTE_ARRAY
+import io.lunarchain.lunarcoin.util.CryptoUtil
 import io.lunarchain.lunarcoin.vm.CallCreate
 import io.lunarchain.lunarcoin.vm.LogInfo
+import io.lunarchain.lunarcoin.vm.program.InternalTransaction
 import lunar.vm.DataWord
+import org.joda.time.DateTime
+import java.math.BigInteger
+import java.security.PublicKey
 import java.util.*
 
 class ProgramResult {
@@ -29,6 +34,8 @@ class ProgramResult {
     private var logInfoList: MutableList<LogInfo>? = null
 
     private var callCreateList: MutableList<CallCreate>? = null
+
+    private var internalTransactions: MutableList<InternalTransaction>? = null
 
     fun spendGas(gas: Long) {
         gasUsed += gas
@@ -120,6 +127,74 @@ class ProgramResult {
 
     fun addCallCreate(data: ByteArray, destination: ByteArray, gasLimit: ByteArray, value: ByteArray) {
         getCallCreateList().add(CallCreate(data, destination, gasLimit, value))
+    }
+
+    fun getInternalTransactions(): MutableList<InternalTransaction> {
+        if (internalTransactions == null) {
+            internalTransactions =  ArrayList()
+        }
+        return internalTransactions!!
+    }
+
+    fun addInternalTransaction(
+        parentHash: ByteArray, deep: Int, nonce: ByteArray, gasPrice: DataWord, gasLimit: DataWord,
+        senderAddress: ByteArray, receiveAddress: ByteArray, value: ByteArray, data: ByteArray, note: String
+    ): InternalTransaction {
+        val transaction = InternalTransaction(
+            senderAddress,
+            receiveAddress,
+            BigInteger.ZERO,
+            DateTime(),
+            CryptoUtil.generateKeyPair().public, // 默认使用无关紧要的key
+            ByteArray(0),
+            parentHash,
+            deep,
+            internalTransactions!!.size,
+            nonce,
+            gasPrice,
+            gasLimit,
+            value,
+            data,
+            note
+        )
+        getInternalTransactions().add(transaction)
+        return transaction
+    }
+
+    fun createEmpty(): ProgramResult {
+        val result = ProgramResult()
+        result.setHReturn(EMPTY_BYTE_ARRAY)
+        return result
+    }
+
+    fun addInternalTransactions(internalTransactions: List<InternalTransaction>) {
+        getInternalTransactions().addAll(internalTransactions)
+    }
+
+    fun addLogInfos(logInfos: List<LogInfo>) {
+        if (!logInfos.isEmpty()) {
+            getLogInfoList().addAll(logInfos)
+        }
+    }
+
+    fun getFutureRefund(): Long {
+        return futureRefund
+    }
+
+    fun merge(another: ProgramResult) {
+        addInternalTransactions(another.getInternalTransactions())
+        if (another.getException() == null && !another.isRevert()) {
+            addDeleteAccounts(another.getDeleteAccounts())
+            addLogInfos(another.getLogInfoList())
+            addFutureRefund(another.getFutureRefund())
+            addTouchAccounts(another.getTouchedAccounts())
+        }
+    }
+
+    fun rejectInternalTransactions() {
+        for (internalTx in getInternalTransactions()) {
+            internalTx.reject()
+        }
     }
 
 

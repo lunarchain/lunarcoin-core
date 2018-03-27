@@ -68,5 +68,9 @@ class ProgramTrace(val enabled: Boolean, val programInvoke: ProgramInvoke) {
         return op
     }
 
+    fun merge(programTrace: ProgramTrace) {
+        this.ops.addAll(programTrace.ops)
+    }
+
 
 }

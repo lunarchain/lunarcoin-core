@@ -151,6 +151,10 @@ object CodecUtil {
         v.add(ASN1Integer(trx.time.millis))
         v.add(DERBitString(trx.publicKey.encoded))
         v.add(DERBitString(trx.signature))
+        v.add(DERBitString(trx.nonce))
+        v.add(DERBitString(trx.gasPrice))
+        v.add(DERBitString(trx.gasLimit))
+        v.add(DERBitString(trx.data))
 
         return DERSequence(v)
     }
@@ -164,6 +168,10 @@ object CodecUtil {
         v.add(ASN1Integer(trx.time.millis))
         v.add(DERBitString(trx.publicKey.encoded))
         // 不要包含Signature
+        v.add(DERBitString(trx.nonce))
+        v.add(DERBitString(trx.gasPrice))
+        v.add(DERBitString(trx.gasLimit))
+        v.add(DERBitString(trx.data))
 
         return DERSequence(v)
     }
@@ -192,14 +200,19 @@ object CodecUtil {
         val millis = ASN1Integer.getInstance(seq.getObjectAt(3))?.value
         val publicKeyBytes = DERBitString.getInstance(seq.getObjectAt(4))?.bytes
         val signature = DERBitString.getInstance(seq.getObjectAt(5))?.bytes
+        val nonce = DERBitString.getInstance(seq.getObjectAt(6))?.bytes
+        val gasPrice = DERBitString.getInstance(seq.getObjectAt(7))?.bytes
+        val gasLimit = DERBitString.getInstance(seq.getObjectAt(8))?.bytes
+        val data = DERBitString.getInstance(seq.getObjectAt(9))?.bytes
 
         if (senderAddress != null && receiverAddress != null && amount != null && millis != null &&
-            publicKeyBytes != null && signature != null
+            publicKeyBytes != null && signature != null && nonce != null && gasPrice != null && gasLimit != null
+            && data != null
         ) {
             val kf = KeyFactory.getInstance("EC", "SC")
             val publicKey = kf.generatePublic(X509EncodedKeySpec(publicKeyBytes))
 
-            return Transaction(senderAddress, receiverAddress, amount, DateTime(millis.toLong()), publicKey, signature)
+            return Transaction(senderAddress, receiverAddress, amount, DateTime(millis.toLong()), publicKey, signature, nonce, gasPrice, gasLimit, data)
         } else {
             return null
         }
@@ -233,6 +246,8 @@ object CodecUtil {
         val t = ASN1EncodableVector()
         block.transactions.forEach { t.add(encodeTransactionToAsn1(it)) } // transactions
         v.add(DERSequence(t))
+
+        v.add(DERBitString(block.gasLimit))
 
         return DERSequence(v)
     }
@@ -268,9 +283,12 @@ object CodecUtil {
                 trxList.add(trx)
             }
 
+            val gasLimit = DERBitString.getInstance(seq.getObjectAt(12))?.bytes
+
             if (version == null || height == null || parentHash == null || minerAddress == null ||
                 difficulty == null || nonce == null || millis == null || totalDifficulty == null ||
-                stateRoot == null || trxTrieRoot == null || trxSize == null || trxSize.toInt() != trxList.size
+                stateRoot == null || trxTrieRoot == null || trxSize == null || trxSize.toInt() != trxList.size ||
+                        gasLimit == null
             ) {
                 return null
             }
@@ -278,7 +296,7 @@ object CodecUtil {
             return Block(
                 version.toInt(), height.toLong(), parentHash, minerAddress,
                 DateTime(millis.toLong()), difficulty.toLong(), nonce.toInt(), totalDifficulty,
-                stateRoot, trxTrieRoot, trxList
+                stateRoot, trxTrieRoot, trxList, gasLimit
             )
         }
 

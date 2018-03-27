@@ -8,7 +8,7 @@ import lunar.vm.program.listener.ProgramListener
 import lunar.vm.program.listener.ProgramListenerAware
 import java.math.BigInteger
 
-class Storage(private val programInvoke: ProgramInvoke): ProgramListenerAware {
+class Storage(val programInvoke: ProgramInvoke): ProgramListenerAware {
 
     private var address: DataWord? = null
     private var repository: Repository? = null
@@ -28,13 +28,21 @@ class Storage(private val programInvoke: ProgramInvoke): ProgramListenerAware {
         return repository!!.isExist(addr)
     }
 
+    fun getRepository(): Repository {
+        return this.repository!!
+    }
+
 
     fun getAccountState(addr: ByteArray): AccountState? {
-        return repository?.getAccountState(addr)
+        return repository!!.getAccountState(addr)
     }
 
     fun getBalance(addr: ByteArray): BigInteger? {
-        return repository?.getBalance(addr)
+        return repository!!.getBalance(addr)
+    }
+
+    fun addBalance(addr: ByteArray, amount: BigInteger) {
+        repository!!.addBalance(addr, amount)
     }
 
     fun getStorageValue(addr: ByteArray, key: DataWord): DataWord? {
@@ -42,7 +50,7 @@ class Storage(private val programInvoke: ProgramInvoke): ProgramListenerAware {
     }
 
     fun addStorageRow(addr: ByteArray, key: DataWord, value: DataWord) {
-        repository?.addStorageRow(addr, key, value)
+        repository!!.addStorageRow(addr, key, value)
     }
 
     fun getNonce(addr: ByteArray): BigInteger {
@@ -52,6 +60,10 @@ class Storage(private val programInvoke: ProgramInvoke): ProgramListenerAware {
     fun increaseNonce(addr: ByteArray): BigInteger {
         repository!!.increaseNonce(addr)
         return repository!!.getNonce(addr)
+    }
+
+    fun getCode(addr: ByteArray): ByteArray? {
+        return repository!!.getCode(addr)
     }
 
 

@@ -1,15 +1,20 @@
 package lunar.vm.program
 
 import io.lunarchain.lunarcoin.core.Transaction
+import io.lunarchain.lunarcoin.util.*
 import io.lunarchain.lunarcoin.util.BIUtil.isNotCovers
-import io.lunarchain.lunarcoin.util.ByteArraySet
+import io.lunarchain.lunarcoin.util.BIUtil.isPositive
+import io.lunarchain.lunarcoin.util.BIUtil.toBI
+import io.lunarchain.lunarcoin.util.BIUtil.transfer
 import io.lunarchain.lunarcoin.util.ByteUtil.EMPTY_BYTE_ARRAY
-import io.lunarchain.lunarcoin.util.HashUtil
-import io.lunarchain.lunarcoin.util.Utils
 import io.lunarchain.lunarcoin.vm.MessageCall
 import io.lunarchain.lunarcoin.vm.PrecompiledContracts
+import io.lunarchain.lunarcoin.vm.program.InternalTransaction
+import io.lunarchain.lunarcoin.vm.program.invoke.ProgramInvokeFactoryImpl
 import lunar.vm.DataWord
+import lunar.vm.GasCost
 import lunar.vm.OpCode
+import lunar.vm.VM
 import lunar.vm.program.invoke.ProgramInvoke
 import lunar.vm.program.listener.CompositeProgramListener
 import lunar.vm.program.listener.ProgramListenerAware
@@ -23,6 +28,7 @@ import java.lang.StrictMath.min
 import java.lang.String.format
 import java.lang.reflect.Array.getLength
 import java.math.BigInteger
+import java.math.BigInteger.ZERO
 import java.util.*
 
 class Program(private val ops: ByteArray, private val programInvoke: ProgramInvoke) {
@@ -33,6 +39,10 @@ class Program(private val ops: ByteArray, private val programInvoke: ProgramInvo
 
     constructor(ops: ByteArray, programInvoke: ProgramInvoke, transaction: Transaction): this(ops, programInvoke) {
         this.transaction = transaction
+    }
+
+    constructor(codeHash: ByteArray, ops: ByteArray, programInvoke: ProgramInvoke, transaction: Transaction): this(ops, programInvoke, transaction) {
+        this.codeHash = codeHash
     }
 
     //VM stack depth
@@ -46,7 +56,7 @@ class Program(private val ops: ByteArray, private val programInvoke: ProgramInvo
     //TODO 默认TRACE开启，后期需写入配置文件
     private val trace = ProgramTrace(true, programInvoke)
 
-    private val codeHash: ByteArray? = null
+    private var codeHash: ByteArray? = null
     private var pc: Int = 0
     private var lastOp: Byte = 0
     private var previouslyExecutedOp: Byte = 0
@@ -57,10 +67,13 @@ class Program(private val ops: ByteArray, private val programInvoke: ProgramInvo
     private val traceListener = ProgramTraceListener(true)
     private val storageDiffListener = ProgramStorageChangeListener()
     private val programListener = CompositeProgramListener()
+    private var listener: ProgramOutListener? = null
 
     private val stack: Stack = setupProgramListener(Stack())
     private val memory: Memory = setupProgramListener(Memory())
     private val storage: Storage = setupProgramListener(Storage(programInvoke))
+
+    private val programInvokeFactory = ProgramInvokeFactoryImpl()
 
 
     private var returnDataBuffer: ByteArray? = null
@@ -75,6 +88,27 @@ class Program(private val ops: ByteArray, private val programInvoke: ProgramInvo
         programListenerAware.setProgramListener(programListener)
 
         return programListenerAware
+    }
+
+    private fun addInternalTx(
+        nonce: ByteArray?, gasLimit: DataWord?, senderAddress: ByteArray, receiveAddress: ByteArray?,
+        value: BigInteger, data: ByteArray?, note: String
+    ): InternalTransaction? {
+        var data = data
+
+        var result: InternalTransaction? = null
+        if (transaction != null) {
+            val senderNonce = if (nonce!!.isEmpty()) getStorage().getNonce(senderAddress).toByteArray() else nonce
+
+            //默认为True
+            //data = if (config.recordInternalTransactionsData()) data else null
+            result = getResult().addInternalTransaction(
+                transaction!!.hash(), getCallDeep(), senderNonce,
+                getGasPrice(), gasLimit!!, senderAddress, receiveAddress!!, value.toByteArray(), data!!, note
+            )
+        }
+
+        return result
     }
 
 
@@ -391,6 +425,11 @@ class Program(private val ops: ByteArray, private val programInvoke: ProgramInvo
         return programInvoke.getGaslimit().clone()
     }
 
+    fun getStorageDiff(): Map<DataWord, DataWord> {
+        return storageDiffListener.getDiff()
+    }
+
+
     fun isStaticCall(): Boolean {
         return programInvoke.isStaticCall()
     }
@@ -420,6 +459,12 @@ class Program(private val ops: ByteArray, private val programInvoke: ProgramInvo
 
     fun stackPushZero() {
         stackPush(DataWord(0))
+    }
+
+
+    fun stackPushOne() {
+        val stackWord = DataWord(1)
+        stackPush(stackWord)
     }
 
     fun createContract(value: DataWord, memStart: DataWord, memSize: DataWord) {
@@ -476,9 +521,8 @@ class Program(private val ops: ByteArray, private val programInvoke: ProgramInvo
         //In case of hashing collisions, check for any balance before createAccount()
         val oldBalance = track.getBalance(newAddress)
         track.createAccount(newAddress)
-        if (blockchainConfig.eip161()) {
-            track.increaseNonce(newAddress)
-        }
+        //eip161 为true
+        track.increaseNonce(newAddress)
         track.addBalance(newAddress, oldBalance)
 
         // [4] TRANSFER THE BALANCE
@@ -493,10 +537,10 @@ class Program(private val ops: ByteArray, private val programInvoke: ProgramInvo
         val internalTx = addInternalTx(nonce, getGasLimit(), senderAddress, null, endowment, programCode, "create")
         val programInvoke = programInvokeFactory.createProgramInvoke(
             this, DataWord(newAddress), getOwnerAddress(), value, gasLimit,
-            newBalance, null, track, this.invoke.getBlockStore(), false, byTestingSuite()
+            newBalance, ByteArray(0), this.programInvoke.getRepository(), false, byTestingSuite()
         )
 
-        var result = ProgramResult.createEmpty()
+        var result = result.createEmpty()
 
         if (contractAlreadyExists) {
             result.setException(
@@ -506,9 +550,9 @@ class Program(private val ops: ByteArray, private val programInvoke: ProgramInvo
                     )
                 )
             )
-        } else if (isNotEmpty(programCode)) {
-            val vm = VM(config)
-            val program = Program(programCode, programInvoke, internalTx, config).withCommonConfig(commonConfig)
+        } else if (programCode.isEmpty()) {
+            val vm = VM
+            val program = Program(programCode, programInvoke, internalTx!!)
             vm.play(program)
             result = program.getResult()
 
@@ -518,28 +562,19 @@ class Program(private val ops: ByteArray, private val programInvoke: ProgramInvo
         // 4. CREATE THE CONTRACT OUT OF RETURN
         val code = result.getHReturn()
 
-        val storageCost = getLength(code) * getBlockchainConfig().getGasCost().getCREATE_DATA()
+        val storageCost = getLength(code) * GasCost().getCREATE_DATA()
         val afterSpend = programInvoke.getGas().longValue() - storageCost - result.getGasUsed()
         if (afterSpend < 0) {
-            if (!blockchainConfig.getConstants().createEmptyContractOnOOG()) {
-                result.setException(
-                    Program.Exception.notEnoughSpendingGas(
-                        "No gas to return just created contract",
-                        storageCost, this
-                    )
-                )
-            } else {
-                track.saveCode(newAddress, EMPTY_BYTE_ARRAY)
-            }
-        } else if (getLength(code) > blockchainConfig.getConstants().getMAX_CONTRACT_SZIE()) {
+            track.saveCode(newAddress, EMPTY_BYTE_ARRAY)
+        } else if (getLength(code) > Integer.MAX_VALUE) {
             result.setException(
-                Program.Exception.notEnoughSpendingGas(
+                Program.notEnoughSpendingGas(
                     "Contract size too large: " + getLength(result.getHReturn()),
-                    storageCost, this
+                    storageCost.toLong(), this
                 )
             )
         } else if (!result.isRevert()) {
-            result.spendGas(storageCost)
+            result.spendGas(storageCost.toLong())
             track.saveCode(newAddress, code)
         }
 
@@ -550,7 +585,7 @@ class Program(private val ops: ByteArray, private val programInvoke: ProgramInvo
                 result.getException()
             )
 
-            internalTx.reject()
+            internalTx!!.reject()
             result.rejectInternalTransactions()
 
             track.rollback()
@@ -585,21 +620,369 @@ class Program(private val ops: ByteArray, private val programInvoke: ProgramInvo
 
     }
 
-    fun callToPrecompiledAddress(msg: MessageCall, contract: PrecompiledContracts.PrecompiledContract) {
-        //TODO("NOT IMPLEMENTED")
+    fun refundGas(gasValue: Long, cause: String) {
+        logger.info("[{}] Refund for cause: [{}], gas: [{}]", programInvoke.hashCode(), cause, gasValue)
+        getResult().refundGas(gasValue)
     }
 
+    fun callToPrecompiledAddress(msg: MessageCall, contract: PrecompiledContracts.PrecompiledContract) {
+        returnDataBuffer = null // reset return buffer right before the call
+
+        if (getCallDeep() == MAX_DEPTH) {
+            stackPushZero()
+            this.refundGas(msg.getGas()!!.longValue(), " call deep limit reach")
+            return
+        }
+
+        val track = getStorage().startTracking()
+
+        val senderAddress = this.getOwnerAddress().getLast20Bytes()
+        val codeAddress = msg.getCodeAddress()!!.getLast20Bytes()
+        val contextAddress = if (msg.getType()!!.callIsStateless()) senderAddress else codeAddress
+
+
+        val endowment = msg.getEndowment()!!.value()
+        val senderBalance = track.getBalance(senderAddress)
+        if (senderBalance.compareTo(endowment) < 0) {
+            stackPushZero()
+            this.refundGas(msg.getGas()!!.longValue(), "refund gas from message call")
+            return
+        }
+
+        val data = this.memoryChunk(
+            msg.getInDataOffs()!!.intValue(),
+            msg.getInDataSize()!!.intValue()
+        )
+
+        // Charge for endowment - is not reversible by rollback
+        BIUtil.transfer(track, senderAddress, contextAddress, msg.getEndowment()!!.value())
+
+        if (byTestingSuite()) {
+            // This keeps track of the calls created for a test
+            this.getResult().addCallCreate(
+                data,
+                msg.getCodeAddress()!!.getLast20Bytes(),
+                msg.getGas()!!.getNoLeadZeroesData(),
+                msg.getEndowment()!!.getNoLeadZeroesData()
+            )
+
+            stackPushOne()
+            return
+        }
+
+
+        val requiredGas = contract.getGasForData(data)
+        if (requiredGas > msg.getGas()!!.longValue()) {
+
+            this.refundGas(0, "call pre-compiled") //matches cpp logic
+            this.stackPushZero()
+            track.rollback()
+        } else {
+
+            val out = contract.execute(data)
+
+            if (out.first) { // success
+                this.refundGas(msg.getGas()!!.longValue() - requiredGas, "call pre-compiled")
+                this.stackPushOne()
+                returnDataBuffer = out.second!!
+                track.commit()
+            } else {
+                // spend all gas on failure, push zero and revert state changes
+                this.refundGas(0, "call pre-compiled")
+                this.stackPushZero()
+                track.rollback()
+            }
+
+            this.memorySave(msg.getOutDataOffs()!!.intValue(), out.second!!)
+        }
+
+    }
+
+    /**
+     * That method is for internal code invocations
+     * <p/>
+     * - Normal calls invoke a specified contract which updates itself
+     * - Stateless calls invoke code from another contract, within the context of the caller
+     *
+     * @param msg is the message call object
+     */
+
     fun callToAddress(msg: MessageCall) {
-        //TODO("NOT IMPLEMENTED")
+        returnDataBuffer = null // reset return buffer right before the call
+
+        if (getCallDeep() == MAX_DEPTH) {
+            stackPushZero()
+            refundGas(msg.getGas()!!.longValue(), " call deep limit reach")
+            return
+        }
+
+        val data = memoryChunk(msg.getInDataOffs()!!.intValue(), msg.getInDataSize()!!.intValue())
+
+        // FETCH THE SAVED STORAGE
+        val codeAddress = msg.getCodeAddress()!!.getLast20Bytes()
+        val senderAddress = getOwnerAddress().getLast20Bytes()
+        val contextAddress = if (msg.getType()!!.callIsStateless()) senderAddress else codeAddress
+
+        if (logger.isInfoEnabled)
+            logger.info(
+                msg.getType()!!.name + " for existing contract: address: [{}], outDataOffs: [{}], outDataSize: [{}]  ",
+                Hex.toHexString(contextAddress), msg.getOutDataOffs()!!.longValue(), msg.getOutDataSize()!!.longValue()
+            )
+
+        val track = getStorage().startTracking()
+
+        // 2.1 PERFORM THE VALUE (endowment) PART
+        val endowment = msg.getEndowment()!!.value()
+        val senderBalance = track.getBalance(senderAddress)
+        if (isNotCovers(senderBalance, endowment)) {
+            stackPushZero()
+            refundGas(msg.getGas()!!.longValue(), "refund gas from message call")
+            return
+        }
+
+
+        // FETCH THE CODE
+        val programCode = if (getStorage().isExist(codeAddress)) getStorage().getCode(codeAddress) else EMPTY_BYTE_ARRAY
+
+
+        var contextBalance = ZERO
+        if (byTestingSuite()) {
+            // This keeps track of the calls created for a test
+            getResult().addCallCreate(
+                data, contextAddress,
+                msg.getGas()!!.getNoLeadZeroesData(),
+                msg.getEndowment()!!.getNoLeadZeroesData()
+            )
+        } else {
+            track.addBalance(senderAddress, endowment.negate())
+            contextBalance = track.addBalance(contextAddress, endowment)
+        }
+
+        // CREATE CALL INTERNAL TRANSACTION
+        val internalTx = addInternalTx(null, getGasLimit(), senderAddress, contextAddress, endowment, data, "call")
+
+        var result: ProgramResult? = null
+        if (!programCode!!.isEmpty()) {
+            val programInvoke = programInvokeFactory.createProgramInvoke(
+                this, DataWord(contextAddress),
+                if (msg.getType()!!.callIsDelegate()) getCallerAddress() else getOwnerAddress(),
+                if (msg.getType()!!.callIsDelegate()) getCallValue() else msg.getEndowment()!!,
+                msg.getGas()!!, contextBalance, data, this.programInvoke.getRepository(),
+                msg.getType()!!.callIsStatic() || isStaticCall(), byTestingSuite()
+            )
+
+            val vm = VM
+            val program = Program(
+                getStorage().getCode(codeAddress)!!,
+                programCode,
+                programInvoke,
+                internalTx!!)
+
+            vm.play(program)
+            result = program.getResult()
+
+            getTrace().merge(program.getTrace())
+            getResult().merge(result)
+
+            if (result!!.getException() != null || result!!.isRevert()) {
+                logger.debug(
+                    "contract run halted by Exception: contract: [{}], exception: [{}]",
+                    Hex.toHexString(contextAddress),
+                    result!!.getException()
+                )
+
+                internalTx.reject()
+                result!!.rejectInternalTransactions()
+
+                track.rollback()
+                stackPushZero()
+
+                if (result.getException() != null) {
+                    return
+                }
+            } else {
+                // 4. THE FLAG OF SUCCESS IS ONE PUSHED INTO THE STACK
+                track.commit()
+                stackPushOne()
+            }
+
+            if (byTestingSuite()) {
+                logger.info("Testing run, skipping storage diff listener")
+            } else if (Arrays.equals(transaction!!.receiverAddress, internalTx.receiverAddress)) {
+                storageDiffListener.merge(program.getStorageDiff())
+            }
+        } else {
+            // 4. THE FLAG OF SUCCESS IS ONE PUSHED INTO THE STACK
+            track.commit()
+            stackPushOne()
+        }
+
+        // 3. APPLY RESULTS: result.getHReturn() into out_memory allocated
+        if (result != null) {
+            val buffer = result.getHReturn()
+            val offset = msg.getOutDataOffs()!!.intValue()
+            val size = msg.getOutDataSize()!!.intValue()
+
+            memorySaveLimited(offset, buffer, size)
+
+            returnDataBuffer = buffer
+        }
+
+        // 5. REFUND THE REMAIN GAS
+        if (result != null) {
+            val refundGas = msg.getGas()!!.value().subtract(toBI(result.getGasUsed()))
+            if (isPositive(refundGas)) {
+                refundGas(refundGas.toLong(), "remaining gas from the internal call")
+                if (logger.isInfoEnabled)
+                    logger.info(
+                        "The remaining gas refunded, account: [{}], gas: [{}] ",
+                        Hex.toHexString(senderAddress),
+                        refundGas.toString()
+                    )
+            }
+        } else {
+            refundGas(msg.getGas()!!.longValue(), "remaining gas from the internal call")
+        }
     }
 
 
     fun suicide(obtainerAddress: DataWord) {
-        //TODO("NOT IMPLEMENTED")
+
+        val owner = getOwnerAddress().getLast20Bytes()
+        val obtainer = obtainerAddress.getLast20Bytes()
+        val balance = getStorage().getBalance(owner)
+
+        if (logger.isInfoEnabled)
+            logger.info(
+                "Transfer to: [{}] heritage: [{}]",
+                Hex.toHexString(obtainer),
+                balance
+            )
+
+        addInternalTx(null, null, owner, obtainer, balance!!, null, "suicide")
+
+        if (FastByteComparisons.compareTo(owner, 0, 20, obtainer, 0, 20) === 0) {
+            // if owner == obtainer just zeroing account according to Yellow Paper
+            getStorage().addBalance(owner, balance.negate())
+        } else {
+            transfer(getStorage().getRepository(), owner, obtainer, balance)
+        }
+
+        getResult().addDeleteAccount(this.getOwnerAddress())
     }
 
     fun fullTrace() {
-        //TODO("NOT IMPLEMENTED")
+        if (logger.isTraceEnabled || listener != null) {
+
+            val stackData = StringBuilder()
+            for (i in stack.indices) {
+                stackData.append(" ").append(stack[i])
+                if (i < stack.size - 1) stackData.append("\n")
+            }
+
+            if (stackData.length > 0) stackData.insert(0, "\n")
+
+            val contractDetails = getStorage().getRepository().getContractDetails(getOwnerAddress().getLast20Bytes())
+            val storageData = StringBuilder()
+            if (contractDetails != null) {
+                try {
+                    val storageKeys = ArrayList(contractDetails!!.getStorage().keys)
+                    Collections.sort(storageKeys)
+                    for (key in storageKeys) {
+                        storageData.append(" ").append(key).append(" -> ")
+                            .append(contractDetails!!.getStorage().get(key)).append("\n")
+                    }
+                    if (storageData.length > 0) storageData.insert(0, "\n")
+                } catch (e: java.lang.Exception) {
+                    storageData.append("Failed to print storage: ").append(e.message)
+                }
+            }
+            val memoryData = StringBuilder()
+            val oneLine = StringBuilder()
+            if (memory.size() > 320)
+                memoryData.append("... Memory Folded.... ")
+                    .append("(")
+                    .append(memory.size())
+                    .append(") bytes")
+            else
+                for (i in 0 until memory.size()) {
+
+                    val value = memory.readByte(i)
+                    oneLine.append(ByteUtil.oneByteToHexString(value)).append(" ")
+
+                    if ((i + 1) % 16 == 0) {
+                        val tmp = format(
+                            "[%4s]-[%4s]", Integer.toString(i - 15, 16),
+                            Integer.toString(i, 16)
+                        ).replace(" ", "0")
+                        memoryData.append("").append(tmp).append(" ")
+                        memoryData.append(oneLine)
+                        if (i < memory.size()) memoryData.append("\n")
+                        oneLine.setLength(0)
+                    }
+                }
+            if (memoryData.length > 0) memoryData.insert(0, "\n")
+
+            val opsString = StringBuilder()
+            for (i in ops.indices) {
+
+                var tmpString = Integer.toString(ops[i].toInt() and 0xFF, 16)
+                tmpString = if (tmpString.length == 1) "0" + tmpString else tmpString
+
+                if (i != pc)
+                    opsString.append(tmpString)
+                else
+                    opsString.append(" >>").append(tmpString).append("")
+
+            }
+            if (pc >= ops.size) opsString.append(" >>")
+            if (opsString.length > 0) opsString.insert(0, "\n ")
+
+            logger.trace(" -- OPS --     {}", opsString)
+            logger.trace(" -- STACK --   {}", stackData)
+            logger.trace(" -- MEMORY --  {}", memoryData)
+            logger.trace(" -- STORAGE -- {}\n", storageData)
+            logger.trace(
+                "\n  Spent Gas: [{}]/[{}]\n  Left Gas:  [{}]\n",
+                getResult().getGasUsed(),
+                programInvoke.getGas().longValue(),
+                getGas().longValue()
+            )
+
+            val globalOutput = StringBuilder("\n")
+            if (stackData.length > 0) stackData.append("\n")
+
+            if (pc != 0)
+                globalOutput.append("[Op: ").append(OpCode.code(lastOp)!!.name).append("]\n")
+
+            globalOutput.append(" -- OPS --     ").append(opsString).append("\n")
+            globalOutput.append(" -- STACK --   ").append(stackData).append("\n")
+            globalOutput.append(" -- MEMORY --  ").append(memoryData).append("\n")
+            globalOutput.append(" -- STORAGE -- ").append(storageData).append("\n")
+
+            if (getResult().getHReturn() != null)
+                globalOutput.append("\n  HReturn: ").append(
+                    Hex.toHexString(getResult().getHReturn())
+                )
+
+            // sophisticated assumption that msg.data != codedata
+            // means we are calling the contract not creating it
+            val txData = programInvoke.getDataCopy(DataWord.ZERO, getDataSize())
+            if (!Arrays.equals(txData, ops))
+                globalOutput.append("\n  msg.data: ").append(Hex.toHexString(txData))
+            globalOutput.append("\n\n  Spent Gas: ").append(getResult().getGasUsed())
+
+            if (listener != null)
+                listener!!.output(globalOutput.toString())
+        }
+    }
+
+    fun addListener(listener: ProgramOutListener) {
+        this.listener = listener
+    }
+
+    interface ProgramOutListener {
+        fun output(out: String)
     }
 
     /**
