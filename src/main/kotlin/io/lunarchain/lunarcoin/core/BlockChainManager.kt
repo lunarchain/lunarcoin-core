@@ -61,6 +61,30 @@ class BlockChainManager(val blockChain: BlockChain) {
     val syncManager = SyncManager(this, blockChain)
 
     /**
+     * 启动BlockChain。
+     */
+    fun start() {
+        connectBootNodes()
+
+        if (blockChain.config.getPeerDiscovery()) {
+            startPeerDiscovery()
+        }
+        if (blockChain.config.getMinerStart()) {
+            startMining()
+        }
+    }
+
+    /**
+     * 关闭BlockChain。
+     */
+    fun stop() {
+        stopMining()
+        stopSync()
+        stopPeerDiscovery()
+        blockChain.repository.close()
+    }
+
+    /**
      * 将Transaction加入到Pending List。
      */
     fun addPendingTransaction(trx: Transaction) {
@@ -172,12 +196,7 @@ class BlockChainManager(val blockChain: BlockChain) {
         }
     }
 
-    /**
-     * 开始搜索可连接的Peer。
-     *
-     * TODO: 运行时更新Peer地址列表并刷新连接。
-     */
-    fun startPeerDiscovery() {
+    private fun connectBootNodes() {
         val bootnodes = blockChain.config.getBootnodes()
 
         if (bootnodes.size > 0) {
@@ -188,16 +207,23 @@ class BlockChainManager(val blockChain: BlockChain) {
                     PeerClient(this).connectAsync(Node(uri.userInfo, uri.host, uri.port))
                 }
             }
-        } else {
-            startMining()
         }
+    }
+
+    /**
+     * 开始搜索可连接的Peer。
+     *
+     * TODO: 运行时更新Peer地址列表并刷新连接。
+     */
+    fun startPeerDiscovery() {
+        // TODO
     }
 
     /**
      * 停止对Peer的搜索。
      */
     fun stopPeerDiscovery() {
-
+        // TODO
     }
 
     /**
@@ -262,13 +288,6 @@ class BlockChainManager(val blockChain: BlockChain) {
     fun lockAccount(): Boolean {
         currentAccount = null
         return true
-    }
-
-    fun stop() {
-        stopMining()
-        stopSync()
-        stopPeerDiscovery()
-        blockChain.repository.close()
     }
 
     private fun broadcastBlock(block: Block, skipPeer: Peer) {

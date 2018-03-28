@@ -230,4 +230,22 @@ class BlockChainConfig {
         return emptyList()
     }
 
+    fun getPeerDiscovery(): Boolean {
+        val config = getConfig()
+        if (config.hasPath("peer.discovery")) {
+            return config.getBoolean("peer.discovery")
+        }
+
+        return true
+    }
+
+    fun getMinerStart(): Boolean {
+        val config = getConfig()
+        if (config.hasPath("miner.start")) {
+            return config.getBoolean("miner.start")
+        }
+
+        return true
+    }
+
 }

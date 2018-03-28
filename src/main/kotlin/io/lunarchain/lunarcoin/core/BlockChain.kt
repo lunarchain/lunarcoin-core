@@ -93,7 +93,7 @@ class BlockChain(val config: BlockChainConfig, val repository: Repository) {
     private fun generateCoinBaseTransaction(): Transaction {
         return Transaction(
             COINBASE_SENDER_ADDRESS,
-            config.getMinerCoinbase(), BLOCK_REWARD, DateTime(), config.getNodePubKey()!!, ByteArray(0), repository.getAccountState(COINBASE_SENDER_ADDRESS)!!.nonce.toByteArray(),
+            config.getMinerCoinbase(), BLOCK_REWARD, DateTime(), config.getNodePubKey()!!, ByteArray(0), ByteArray(0),
             gasPrice.toByteArray(), gasLimit.toByteArray(), ByteArray(0)
         )
     }
