@@ -8,6 +8,8 @@ import io.lunarchain.lunarcoin.storage.Repository
 import io.lunarchain.lunarcoin.trie.PatriciaTrie
 import io.lunarchain.lunarcoin.util.BlockChainUtil
 import io.lunarchain.lunarcoin.util.CodecUtil
+import io.lunarchain.lunarcoin.vm.program.invoke.ProgramInvokeFactory
+import io.lunarchain.lunarcoin.vm.program.invoke.ProgramInvokeFactoryImpl
 import org.joda.time.DateTime
 import org.slf4j.LoggerFactory
 import org.spongycastle.util.encoders.Hex
@@ -31,7 +33,7 @@ class BlockChain(val config: BlockChainConfig, val repository: Repository) {
     /**
      * 交易处理实例。
      */
-    val transactionExecutor = TransactionExecutor(repository)
+    //val transactionExecutor = TransactionExecutor(repository)
 
     init {
         // 检查NodeId，如果不存在就自动生成NodeId。
@@ -104,12 +106,20 @@ class BlockChain(val config: BlockChainConfig, val repository: Repository) {
      * TODO: 费用的计算和分配。
      */
     fun processBlock(block: Block): Block {
-        transactionExecutor.executeCoinbaseTransaction(block.transactions[0])
+        var executor = TransactionExecutor(repository, bestBlock, block.transactions[0], 0L, repository, ProgramInvokeFactoryImpl())
+        var totalGasUsed: Long = 0
+        repository.startTracking()
+        executor.executeCoinbaseTransaction(block.transactions[0])
         repository.putTransaction(block.transactions[0])
+        repository.commit()
 
         for (trx in block.transactions.drop(1)) {
-            transactionExecutor.execute(trx)
-            repository.putTransaction(trx)
+            executor = TransactionExecutor(repository, bestBlock, trx, totalGasUsed, repository, ProgramInvokeFactoryImpl())
+            repository.startTracking()
+            executor.init()
+            executor.execute()
+            executor.go()
+            totalGasUsed += executor.getGasUsed()
         }
 
         return Block(

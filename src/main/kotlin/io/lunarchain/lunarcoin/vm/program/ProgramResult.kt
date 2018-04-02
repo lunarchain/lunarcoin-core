@@ -181,6 +181,10 @@ class ProgramResult {
         return futureRefund
     }
 
+    fun resetFutureRefund() {
+        futureRefund = 0
+    }
+
     fun merge(another: ProgramResult) {
         addInternalTransactions(another.getInternalTransactions())
         if (another.getException() == null && !another.isRevert()) {
