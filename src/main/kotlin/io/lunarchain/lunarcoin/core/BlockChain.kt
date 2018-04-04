@@ -115,7 +115,7 @@ class BlockChain(val config: BlockChainConfig, val repository: Repository) {
 
         for (trx in block.transactions.drop(1)) {
             executor = TransactionExecutor(repository, bestBlock, trx, totalGasUsed, repository, ProgramInvokeFactoryImpl())
-            repository.startTracking()
+            //repository.startTracking()
             executor.init()
             executor.execute()
             executor.go()

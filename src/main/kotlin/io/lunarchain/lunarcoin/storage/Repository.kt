@@ -43,7 +43,6 @@ interface Repository {
     fun isExist(address: ByteArray): Boolean
     fun getStorageValue(addr: ByteArray, key: DataWord): DataWord?
     fun getAccountState(address: ByteArray): AccountState?
-    fun getAccountStateStore(): PatriciaTrie?
     fun getOrCreateAccountState(addr: ByteArray): AccountState
     fun createAccountState(addr: ByteArray): AccountState
     fun delete(address: ByteArray)

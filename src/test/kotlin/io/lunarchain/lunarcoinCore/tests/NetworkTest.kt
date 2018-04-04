@@ -73,26 +73,13 @@ class NetworkTest {
         val bob = Account(kp2.public)
 
 
-        repo.getOrCreateAccountState(alice.address)
-        repo.getOrCreateAccountState(bob.address)
-        //repo.createAccountStorage(alice.address)
-        //repo.createAccountStorage(bob.address)
-
-        //val state = AccountState(BigInteger.ZERO, BigInteger.ZERO, HashUtil.EMPTY_TRIE_HASH, HashUtil.EMPTY_DATA_HASH)
-        val accountStore = repo.getAccountStateStore()
-        //accountStore!!.update(alice.address, CodecUtil.encodeAccountState(state))
-        val accountState = accountStore!!.get(alice.address)
-        val decodedState = CodecUtil.decodeAccountState(accountState)
-        val decodedState_2 = repo.getAccountState(alice.address)
-        val nonce = decodedState_2!!.nonce
-
-
-
+        repo.createAccountState(alice.address)
+        repo.createAccountState(bob.address)
 
         // Alice向Bob转账100
 
         val trx = Transaction(alice.address, bob.address, BigInteger.valueOf(100), DateTime(), kp1.public, ByteArray(0),
-            (repo.getAccountState(alice.address)!!.nonce + BigInteger.ONE).toByteArray(), 100.toBigInteger().toByteArray(), 10000.toBigInteger().toByteArray(), ByteArray(0))
+            (repo.getAccountState(alice.address)!!.nonce).toByteArray(), 1.toBigInteger().toByteArray(), 100.toBigInteger().toByteArray(), ByteArray(0))
 
         val transactionExecutor = TransactionExecutor(repo, config.getGenesisBlock(), trx, 0L, repo, ProgramInvokeFactoryImpl())
 

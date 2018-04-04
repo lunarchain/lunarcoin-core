@@ -98,7 +98,7 @@ class ServerRepository : Repository {
     /**
      * Account State的存储类组装。
      */
-    override fun getAccountStateStore(): PatriciaTrie? {
+    fun getAccountStateStore(): PatriciaTrie? {
         if (accountStateDs != null) return accountStateDs
 
         val bucketName = BUCKET_NAME_ACCOUNT_STATE
@@ -474,21 +474,21 @@ class ServerRepository : Repository {
     override fun startTracking() {
         //accountDs!!.start()
         accountStateDs!!.start()
-        //accountStorageDs!!.start()
+        accountStorageDs!!.start()
     }
 
     @Synchronized
     override fun rollback() {
         //accountDs!!.rollback()
         accountStateDs!!.rollback()
-        //accountStorageDs!!.rollback()
+        accountStorageDs!!.rollback()
     }
 
     @Synchronized
     override fun commit() {
-       //accountDs!!.commit()
+        //accountDs!!.commit()
         accountStateDs!!.commit()
-        //accountStorageDs!!.commit()
+        accountStorageDs!!.commit()
     }
 
 

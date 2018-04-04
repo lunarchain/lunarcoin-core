@@ -17,7 +17,7 @@ class AccountState(val nonce: BigInteger, val balance: BigInteger) {
     }
 
     fun increaseNonce(): AccountState {
-        return AccountState(nonce + BigInteger.ONE, balance)
+        return AccountState(nonce + BigInteger.ONE, balance, stateRoot!!, codeHash!!)
     }
 
 

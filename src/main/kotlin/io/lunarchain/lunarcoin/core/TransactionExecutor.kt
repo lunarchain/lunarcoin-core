@@ -190,7 +190,10 @@ class TransactionExecutor(val repository: Repository, val bestBlock: Block, val 
 
     fun go() {
 
-        if (!readyToExecute) return
+        if (!readyToExecute) {
+            repository.rollback()
+            return
+        }
 
         try {
             if (vm != null) {
@@ -244,7 +247,7 @@ class TransactionExecutor(val repository: Repository, val bestBlock: Block, val 
                 }
             } else {
                 track.putTransaction(tx)
-                track.commit()
+                //track.commit()
             }
 
         } catch (e: Throwable) {
