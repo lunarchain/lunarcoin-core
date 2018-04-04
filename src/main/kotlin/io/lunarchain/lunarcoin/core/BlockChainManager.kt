@@ -191,9 +191,10 @@ class BlockChainManager(val blockChain: BlockChain) {
         logger.debug("Process mined block: $block")
 
         if (blockChain.importBlock(block) == BlockChain.ImportResult.BEST_BLOCK) {
-            val bestBlock = blockChain.getBestBlock()
-            peers.forEach { it.sendNewBlock(bestBlock) }
+            //val bestBlock = blockChain.getBestBlock()
+            //peers.forEach { it.sendNewBlock(bestBlock) }
         }
+
     }
 
     private fun connectBootNodes() {

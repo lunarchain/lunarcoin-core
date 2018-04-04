@@ -22,11 +22,11 @@ class AccountState(val nonce: BigInteger, val balance: BigInteger) {
 
 
     fun increaseBalance(amount: BigInteger): AccountState {
-        return AccountState(nonce, balance + amount)
+        return AccountState(nonce, balance + amount, stateRoot!!, codeHash!!)
     }
 
     fun setNonce(nonce: BigInteger): AccountState {
-        return AccountState(nonce, balance)
+        return AccountState(nonce, balance, stateRoot!!, codeHash!!)
     }
 
     //code that represents contract state
@@ -41,7 +41,7 @@ class AccountState(val nonce: BigInteger, val balance: BigInteger) {
        * I define a convenient equivalence TRIE (σ[a] s ) ≡ σ[a] s .
        * It shall be understood that σ[a] s is not a ‘physical’ member
        * of the account and does not contribute to its later serialisation */
-    private var stateRoot: ByteArray? = null
+    var stateRoot: ByteArray? = null
 
     /* The hash of the EVM code of this contract—this is the code
        * that gets executed should this address receive a message call;

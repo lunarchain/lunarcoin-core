@@ -4,6 +4,7 @@ import io.lunarchain.lunarcoin.core.AccountState
 import io.lunarchain.lunarcoin.core.AccountWithKey
 import io.lunarchain.lunarcoin.core.Block
 import io.lunarchain.lunarcoin.core.Transaction
+import io.lunarchain.lunarcoin.trie.PatriciaTrie
 import lunar.vm.DataWord
 import java.math.BigInteger
 
@@ -42,8 +43,11 @@ interface Repository {
     fun isExist(address: ByteArray): Boolean
     fun getStorageValue(addr: ByteArray, key: DataWord): DataWord?
     fun getAccountState(address: ByteArray): AccountState?
+    fun getAccountStateStore(): PatriciaTrie?
     fun getOrCreateAccountState(addr: ByteArray): AccountState
+    fun createAccountState(addr: ByteArray): AccountState
     fun delete(address: ByteArray)
+    fun createAccountStorage(address: ByteArray)
 
     /**
      * Retrieve the code associated with an account

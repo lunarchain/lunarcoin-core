@@ -282,7 +282,10 @@ class TransactionExecutor(val repository: Repository, val bestBlock: Block, val 
             )
             return
         }
-        val reqNonce = track.getNonce(tx.getSender()!!)
+
+        val senderAddress = tx.senderAddress
+
+        val reqNonce = track.getNonce(senderAddress)
         val txNonce = toBI(tx.nonce)
 
         if (isNotEqual(reqNonce, txNonce)) {
