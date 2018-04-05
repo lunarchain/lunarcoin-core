@@ -234,7 +234,6 @@ class TransactionExecutor(val repository: Repository, val bestBlock: Block, val 
                     result!!.getDeleteAccounts().clear()
                     result!!.getLogInfoList().clear()
                     result!!.resetFutureRefund()
-                    rollback()
 
                     if (result!!.getException() != null) {
                         throw result!!.getException()!!
@@ -243,23 +242,15 @@ class TransactionExecutor(val repository: Repository, val bestBlock: Block, val 
                     }
                 } else {
                     track.putTransaction(tx)
-                    track.commit()
                 }
             } else {
                 track.putTransaction(tx)
-                //track.commit()
             }
 
         } catch (e: Throwable) {
-            rollback()
             m_endGas = BigInteger.ZERO
             execError(e.message!!)
         }
-
-    }
-
-    fun rollback() {
-        track.rollback()
 
     }
 
