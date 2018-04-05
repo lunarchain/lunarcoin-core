@@ -107,8 +107,16 @@ object CodecUtil {
 
         v.add(ASN1Integer(accountState.nonce))
         v.add(ASN1Integer(accountState.balance))
-        v.add(DERBitString(accountState.stateRoot))
-        v.add(DERBitString(accountState.getCodeHash()))
+        if(accountState.stateRoot == null) {
+            v.add(DERBitString(HashUtil.EMPTY_TRIE_HASH))
+        } else {
+            v.add(DERBitString(accountState.stateRoot))
+        }
+        if(accountState.getCodeHash() == null) {
+            v.add(DERBitString(HashUtil.EMPTY_DATA_HASH))
+        } else {
+            v.add(DERBitString(accountState.getCodeHash()))
+        }
 
         return DERSequence(v).encoded
     }
@@ -123,11 +131,11 @@ object CodecUtil {
             val seq = ASN1Sequence.getInstance(v)
             val nonce = ASN1Integer.getInstance(seq.getObjectAt(0))?.value
             val balance = ASN1Integer.getInstance(seq.getObjectAt(1))?.value
-            val stateRoot = DERBitString.getInstance(seq.getObjectAt(2))?.bytes
-            val codeHash = DERBitString.getInstance(seq.getObjectAt(3))?.bytes
+            var stateRoot = DERBitString.getInstance(seq.getObjectAt(2))?.bytes
+            var codeHash = DERBitString.getInstance(seq.getObjectAt(3))?.bytes
 
-            if (nonce != null && balance != null && stateRoot != null && codeHash != null) {
-                return AccountState(nonce, balance, stateRoot, codeHash)
+            if (nonce != null && balance != null) {
+                return AccountState(nonce, balance, stateRoot!!, codeHash!!)
             }
         }
 
