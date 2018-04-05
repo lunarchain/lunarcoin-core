@@ -110,22 +110,23 @@ class BlockChain(val config: BlockChainConfig, val repository: Repository) {
         var totalGasUsed: Long = 0
 
         repository.startTracking()
-        /*
+
         try {
             executor.executeCoinbaseTransaction(block.transactions[0])
             repository.putTransaction(block.transactions[0])
 
             for (trx in block.transactions.drop(1)) {
                 executor = TransactionExecutor(repository, bestBlock, trx, totalGasUsed, repository, ProgramInvokeFactoryImpl())
+                //repository.startTracking()
                 executor.init()
                 executor.execute()
                 executor.go()
                 totalGasUsed += executor.getGasUsed()
             }
-        } catch (e : Exception) {
+        }  catch (e: Exception) {
             repository.rollback()
+        } finally {
         }
-        */
         repository.commit()
 
         return Block(

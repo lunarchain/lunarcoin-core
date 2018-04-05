@@ -246,8 +246,7 @@ class TransactionExecutor(val repository: Repository, val bestBlock: Block, val 
             } else {
                 track.putTransaction(tx)
                 return
-            }
-
+                }
         } catch (e: Throwable) {
             m_endGas = BigInteger.ZERO
             execError(e.message!!)
