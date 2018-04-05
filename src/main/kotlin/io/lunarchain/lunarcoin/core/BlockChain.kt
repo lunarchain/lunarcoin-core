@@ -108,19 +108,25 @@ class BlockChain(val config: BlockChainConfig, val repository: Repository) {
     fun processBlock(block: Block): Block {
         var executor = TransactionExecutor(repository, bestBlock, block.transactions[0], 0L, repository, ProgramInvokeFactoryImpl())
         var totalGasUsed: Long = 0
-        repository.startTracking()
-        executor.executeCoinbaseTransaction(block.transactions[0])
-        repository.putTransaction(block.transactions[0])
-        repository.commit()
 
-        for (trx in block.transactions.drop(1)) {
-            executor = TransactionExecutor(repository, bestBlock, trx, totalGasUsed, repository, ProgramInvokeFactoryImpl())
-            //repository.startTracking()
-            executor.init()
-            executor.execute()
-            executor.go()
-            totalGasUsed += executor.getGasUsed()
+        repository.startTracking()
+        /*
+        try {
+            executor.executeCoinbaseTransaction(block.transactions[0])
+            repository.putTransaction(block.transactions[0])
+
+            for (trx in block.transactions.drop(1)) {
+                executor = TransactionExecutor(repository, bestBlock, trx, totalGasUsed, repository, ProgramInvokeFactoryImpl())
+                executor.init()
+                executor.execute()
+                executor.go()
+                totalGasUsed += executor.getGasUsed()
+            }
+        } catch (e : Exception) {
+            repository.rollback()
         }
+        */
+        repository.commit()
 
         return Block(
             block.version, block.height, block.parentHash, block.coinBase,

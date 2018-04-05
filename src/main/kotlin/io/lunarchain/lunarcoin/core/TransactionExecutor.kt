@@ -191,7 +191,6 @@ class TransactionExecutor(val repository: Repository, val bestBlock: Block, val 
     fun go() {
 
         if (!readyToExecute) {
-            repository.rollback()
             return
         }
 
@@ -234,7 +233,6 @@ class TransactionExecutor(val repository: Repository, val bestBlock: Block, val 
                     result!!.getDeleteAccounts().clear()
                     result!!.getLogInfoList().clear()
                     result!!.resetFutureRefund()
-                    rollback()
 
                     if (result!!.getException() != null) {
                         throw result!!.getException()!!
@@ -243,25 +241,27 @@ class TransactionExecutor(val repository: Repository, val bestBlock: Block, val 
                     }
                 } else {
                     track.putTransaction(tx)
-                    track.commit()
+                    return
                 }
             } else {
                 track.putTransaction(tx)
-                //track.commit()
+                return
             }
 
         } catch (e: Throwable) {
-            rollback()
             m_endGas = BigInteger.ZERO
             execError(e.message!!)
+            throw e
         }
 
     }
-
+/*
     fun rollback() {
         track.rollback()
 
     }
+
+    */
 
     /**
      * 在交易执行前做一些基本的检查
