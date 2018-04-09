@@ -1,6 +1,9 @@
 package io.lunarchain.lunarcoin.tests
 
+import io.lunarchain.lunarcoin.core.Account
+import io.lunarchain.lunarcoin.storage.LevelDbDataSource
 import io.lunarchain.lunarcoin.trie.*
+import io.lunarchain.lunarcoin.util.CryptoUtil
 import org.junit.Assert.assertArrayEquals
 import org.junit.Test
 
@@ -51,6 +54,24 @@ class PatriciaTrieTest {
         val nibbles = unpackToNibbles(bin)
 
         assertArrayEquals(nibbles, arrayOf(0, 1, 0, 1, 0, 2, NIBBLE_TERMINATOR))
+    }
+
+    @Test
+    fun testBulkAccounts() {
+
+        val db = LevelDbDataSource("test", "test-database")
+        db.init()
+        val trie = PatriciaTrie(db)
+
+        println("Generating 1000 accounts to check patricia trie.")
+        for (i in 0..1000) {
+            val kp = CryptoUtil.generateKeyPair()
+            val account = Account(kp.public)
+
+            trie.update(account.address, i.toString().toByteArray())
+            assertArrayEquals(trie.get(account.address), i.toString().toByteArray())
+        }
+        db.close()
     }
 
 }
